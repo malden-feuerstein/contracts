@@ -1,0 +1,59 @@
+{
+  "name": "malden-feuerstein",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@openzeppelin/hardhat-upgrades": "^1.12.0",
+    "@types/chai": "^4.2.22",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "^16.11.7",
+    "avalanche": "^3.9.3",
+    "chai": "^4.3.4",
+    "ethereum-waffle": "^3.4.0",
+    "ethereumjs-tx": "^2.1.2",
+    "ethers": "^5.5.1",
+    "hardhat": "^2.6.8",
+    "hardhat-contract-sizer": "^2.1.1",
+    "hardhat-gas-reporter": "^1.0.4",
+    "solidity-coverage": "^0.7.17",
+    "ts-node": "^10.4.0",
+    "web3": "^1.6.0"
+  },
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "repository": "https://github.com/xanderdunn/maldenfeuerstein",
+  "author": "Xander Dunn",
+  "license": "MIT",
+  "scripts": {
+    "precompile": "rimraf ./build/",
+    "compile": "npx hardhat compile",
+    "console": "npx hardhat console",
+    "pretest": "yarn compile",
+    "test": "npx hardhat test",
+    "deploy": "npx hardhat run scripts/deploy.ts",
+    "erc20": "npx hardhat run scripts/erc20.ts",
+    "nft": "npx hardhat run scripts/nft.ts --network mainnet",
+    "storage": "npx hardhat run scripts/storage.ts",
+    "send-avax-wallet-signer": "npx hardhat run scripts/sendAvaxWalletSigner.ts",
+    "send-avax-json-provider": "npx hardhat run scripts/sendAvaxJSONProvider.ts",
+    "prepublishOnly": "yarn test",
+    "lint": "solhint contracts/*",
+    "hardhat": "npx hardhat",
+    "accounts": "npx hardhat accounts",
+    "balances": "npx hardhat balances",
+    "fund-cchain-addresses": "npx hardhat run scripts/fund-cchain-addresses.js",
+    "analyze": "slither . --filter-paths \"hardhat|openzeppelin|traderjoe-xyz\" --exclude solc-version",
+    "myth": "myth analyze --solc-json solidity.json"
+  },
+  "dependencies": {
+    "@gnosis.pm/safe-contracts": "https://github.com/gnosis/safe-contracts/archive/refs/tags/v1.3.0.tar.gz",
+    "@openzeppelin/contracts": "^4.3.3",
+    "@openzeppelin/contracts-upgradeable": "^4.3.3",
+    "@traderjoe-xyz/core": "github:traderjoe-xyz/joe-core#8f638a63c1241f72922aa17dbdb33a4c4db4cd36",
+    "typescript": "^4.4.4"
+  },
+  "engines": {
+    "node": ">=14.17.0"
+  }
+}

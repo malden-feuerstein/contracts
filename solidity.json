@@ -1,0 +1,8 @@
+{
+ "remappings": [ "@openzeppelin/=./node_modules/@openzeppelin/",
+                 "hardhat/=./node_modules/hardhat/",
+                 "@traderjoe-xyz/=./node_modules/@traderjoe-xyz/" ],
+  "optimizer": {
+    "enabled": true
+  }
+}
