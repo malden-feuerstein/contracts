@@ -1,6 +1,11 @@
 ### Introduction
 Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed initially on the Avalanche C-Chain. Malden Feuerstein is a non-custodial value investment fund. Anyone can put money into the fund and have it governed by the investment rules encoded in the contracts. It is unique compared to smart contract investment enablers such as [dHedge](https://www.dhedge.org) or [Syndicate](https://syndicate.io) in that the investment thesis and principles are codified rules on the blockchain. Furthermore, no fees are charged. The management of the funds is decentralized and anyone can update its prices and allocations. Initially, the only centralized component is the list of assets that are considered for investment by the decentralized investment fund. The contracts use OpenZeppelin to achieve UUPS upgradeability.
 
+### Functionality Overview
+- MaldenFeuersteinERC20.sol is an ERC20 token (MALD). Tokens can be received by sending AVAX to the contract. That AVAX is sent to CashManager.sol to be diversified into the cash holding portfolio. This contract also enables redeeming the MALD tokens for the equivalent percentage of all cash assets and investment assets in the contract.
+- CashManager.sol holds all assets until they're ready to be invested. It has percentage allotments to diversify assets across a set of cash assets, such as USDT, USDC, DAI, etc.
+- InvestmentManager.sol is responsible for collecting market prices on assets that are being watched. It enforces the Kelly criterion for bet sizing and when to invest in assets based on market conditions. 
+
 ### Install
 - `brew install go`
 - Install and build [avalanchego](https://github.com/ava-labs/avalanchego)
@@ -42,8 +47,9 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Backtest it with real ETH, BTC data
 - Maybe increase percentage precision to 18 decimals to completely capture all WAVAX precision?
 - Add pausability to the CashManager and InvestmentManager
+- Actually make use of the stored prices. Currently they're stored but not used.
 - Currently I make the assumption that an asset -> USDT pair exists, but this may not always be true. Need to use liquidation path to WAVAX to get to USDT
-- InvestmentManager: It should have a switch on an asset where it's in watch-only mode: The price history can be collected from week to week but it can't buy bought
+- !InvestmentManager: It should have a switch on an asset where it's in watch-only mode: The price history can be collected from week to week but it can't buy bought
 - CashManager: Only liquidate when a cash asset is entirely removed? Getting a new asset up to desired % is only done through new investments.
 - What happens when a particular liquidation or purchase fails repeatedly? It would prevent it from moving to the next item. This could be solved by removing it from the list even if it fails. But would need to prevent a malicious user from always removing it from the list.
 - Important test: Run some tests on the redemptions stepping on the investment liquidations
@@ -56,6 +62,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Test: How does the kelly bet sizing work with many assets in the investment manager, all of them qualifying for purchases?
 - Make sure the last investor to redeem can get everything out
 - Rather than an ERC20, make the token an ANT and wrap it as an ARC-20. See [here](https://medium.com/avalancheavax/apricot-phase-five-p-c-atomic-transfers-atomic-transaction-batching-and-c-chain-fee-algorithm-912507489ecd) and [here](https://docs.avax.network/build/references/coreth-arc20s). This will allow the token to be used on the X, P, and other chains.
+- Test: Someone externally sending to the contract one of the cash or investment assets, thereby throwing the percentages off balance.
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called
