@@ -54,7 +54,7 @@ describe('Test CashManager', function () {
         await expect(cashManager.initialize(contracts.swapRouter.address, contracts.investmentManager.address)).to.be.
             revertedWith("Initializable: contract is already initialized");
     })
-    // TODO: Add a test that upgrading a variable like 
+    // TODO: Add a test that upgrading a variable like
 
     it ("Should have the right cash allocations", async function() {
         await expect(cashManager.connect(user).cashAssets(0)).to.be.revertedWith("Transaction reverted without a reason string");

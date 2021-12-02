@@ -16,7 +16,7 @@ import { makeInvestment } from "../scripts/investment-manager"
 
 var totalAVAXInvestments = BigNumber.from("0");
 
-function randomIntFromInterval(min, max) { // min and max included 
+function randomIntFromInterval(min, max) { // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
@@ -271,13 +271,13 @@ describe('Fuzz Testing', function () {
             // if it's older than one day, get a new buy determination
             const latestBlock = await ethers.provider.getBlock("latest");
             let currentTimestampMinusOneDay = latestBlock.timestamp - (24 * 60 * 60);
-            if ((data.buyAmount > 0) && (data.buyDeterminationTimestamp <= currentTimestampMinusOneDay)) { 
+            if ((data.buyAmount > 0) && (data.buyDeterminationTimestamp <= currentTimestampMinusOneDay)) {
                 console.log("Updating stale buy determination...");
                 if (data.reservedForBuy) {
                     await contracts.cashManager.connect(user).processInvestmentBuy(asset); // clear the old determination
                 }
                 await contracts.investmentManager.connect(user).determineBuy(asset);
-                data = await contracts.investmentManager.connect(user).investmentAssetsData(asset); // 
+                data = await contracts.investmentManager.connect(user).investmentAssetsData(asset); //
             }
             if (data.buyAmount > 0) {
                 if (!data.reservedForBuy) {
@@ -298,7 +298,7 @@ describe('Fuzz Testing', function () {
         sumAVAXValue = cashManagerAVAXValue.add(investmentManagerAVAXValue);
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",
                     totalAVAXInvestments.toString(),sumAVAXValue.toString());
-        // TODO: Why is this typically lower than the investment, and by multiple AVAX? Possibly slippage from the swaps?
+        // TODO: Why is this typically lower than the investment? Possibly slippage from the swaps?
         //const epsilonAVAX = ethers.utils.parseUnits("5", "ether");
         const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
         const library = await Library.deploy();

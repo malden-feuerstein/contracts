@@ -41,7 +41,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     // Can have at most uint16 max value length = 65535
     address[] public cashAssets; // An array of all cash assets to iterate across the cashAssetsAllocations mapping
     // Relying on a whole day of time transpiring here, it's unlikely that miners can manipulate timestamp this much
-    uint256 public lastCashBalanceUpdateTimestamp; 
+    uint256 public lastCashBalanceUpdateTimestamp;
     uint256 public lastCashAssetsPricesUpdateBlockNumber;
     mapping(address => address[]) private liquidatePaths;
     mapping(address => address[]) private purchasePaths;
@@ -66,7 +66,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     // constants
     // As of this writing average Avalanche C-Chain block time is 2 seconds
     // https://snowtrace.io/chart/blocktime
-    uint256 private newBlockEveryNMicroseconds; 
+    uint256 private newBlockEveryNMicroseconds;
     uint256 private totalUSDValue;
     uint256 private minimumSwapValue;
     uint256 private priceImpactTolerance; // price impact micro percentage
@@ -170,7 +170,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                                                                                                 desiredAmountToSwap,
                                                                                                 priceImpactTolerance);
                         // If not fully liquidating it, then keep it in the asset list to process further liquidations
-                        if (amountToSwap != desiredAmountToSwap) { 
+                        if (amountToSwap != desiredAmountToSwap) {
                             cashAssets.push(asset);
                         }
                         IERC20 fromToken = IERC20(path[0]);
@@ -185,7 +185,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                                                                                       address(this),
                                                                                       block.timestamp);
                         require(amounts[0] == amountToSwap, "Didn't sell the amount of tokens inserted.");
-                        require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected."); 
+                        require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected.");
                     }
                 }
             }
@@ -449,7 +449,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                                                                         liquidateToken.decimals(),
                                                                         priceQuote.price);
             // Add 1% to make sure we swap enough
-            uint256 buyAmountWithCushion = Library.addPercentage(amountNeeded, (1 * (10 ** 6))); 
+            uint256 buyAmountWithCushion = Library.addPercentage(amountNeeded, (1 * (10 ** 6)));
             if ((liquidateTokenValueInWAVAX + wavaxOnHand) >= buyAmountWithCushion) {
                 uint256 differenceNeeded = buyAmountWithCushion - wavaxOnHand;
                 uint256 percentLiquidationNeeded = Library.valueIsWhatPercentOf(differenceNeeded, liquidateTokenValueInWAVAX);
@@ -482,7 +482,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(success, "wavax approval to the MALD coin failed.");
     }
 
-    // Call this before processInvestmentBuy to reserve 
+    // Call this before processInvestmentBuy to reserve
     function prepareDryPowderForInvestmentBuy(address asset) external whenNotPaused { // anyone can call this
         bool exists;
         uint256 buyAmount;
@@ -505,6 +505,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         // TODO: Authorize liquidations to achieve buyAmount
         uint256 wavaxOnHand = wavax.balanceOf(address(this));
         if (wavaxOnHand < buyAmount) {
+            // TODO: It's possible for this to delete liquidations queued from a previous operation,
+            // such as a redemption or an investment buy
             delete liquidationsToPerform;
             assert(liquidationsToPerform.length == 0);
             prepareDryPowder(buyAmount, wavaxOnHand);
@@ -541,29 +543,31 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
             // It's possible that liquidaitons to produce WAVAX dry powder didn't convert as much as desired due to
             // slippage constraints. In that situation, complete the buy as much as possible.
             buyAmount = Math.min(buyAmount, wavax.balanceOf(address(this)));
-            if (asset == address(wavax)) { // just send it to the investment manager
-                bool success = wavax.transfer(address(investmentManager), buyAmount);
-                require(success, "WAVAX transfer failed.");
-            } else { // swap and send to the InvestmentManager
-                bool success = wavax.approve(address(joeRouter), buyAmount);
-                require(success, "token approval failed.");
+            if (buyAmount > 0) { // Do nothing if there is no WAVAX on hand for this investment
+                if (asset == address(wavax)) { // just send it to the investment manager
+                    bool success = wavax.transfer(address(investmentManager), buyAmount);
+                    require(success, "WAVAX transfer failed.");
+                } else { // swap and send to the InvestmentManager
+                    bool success = wavax.approve(address(joeRouter), buyAmount);
+                    require(success, "token approval failed.");
 
-                // Do the swap
-                address[] memory path = investmentManager.getBuyPath(asset);
-                uint256[] memory amounts = joeRouter.swapExactTokensForTokens(buyAmount,
-                                                                              minimumReceived, // Define a minimum received
-                                                                              path,
-                                                                              address(investmentManager),
-                                                                              block.timestamp);
-                require(amounts[0] == buyAmount, "Didn't sell the amount of tokens inserted.");
-                require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected."); 
+                    // Do the swap
+                    address[] memory path = investmentManager.getBuyPath(asset);
+                    uint256[] memory amounts = joeRouter.swapExactTokensForTokens(buyAmount,
+                                                                                  minimumReceived, // Define a minimum received
+                                                                                  path,
+                                                                                  address(investmentManager),
+                                                                                  block.timestamp);
+                    require(amounts[0] == buyAmount, "Didn't sell the amount of tokens inserted.");
+                    require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected.");
+                }
             }
         }
     }
 
     // A convenience function to return what % of total USD portfolio value this asset is, according to the contract
     // Note that the prices are updates potentially every minute by calls to updateCashPrices, whereas
-    // the totalUSDValue is updated at most once per day by calls to 
+    // the totalUSDValue is updated at most once per day by calls to
     function assetPercentageOfPortfolio(address asset) external view returns (uint256 value) {
         uint256 priceInUSD = cashAssetsPrices[asset];
         require(priceInUSD > 0, "This asset isn't stored in cash prices.");
