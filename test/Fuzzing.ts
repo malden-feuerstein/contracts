@@ -224,7 +224,9 @@ describe('Fuzz Testing', function () {
                                      investmentManagerGetLatestPrice, investmentManagerBuy, investmentManagerDetermineBuy,
                                      cashManagerPrepareDryPowderForInvestmentBuy, cashManagerProcessPurchase,
                                      cashManagerProcessLiquidation, cashManagerProcessInvestmentBuy, investmentManagerSetAsset];
-        const numCalls = 200; // Increase this to increase the number of fuzz calls per test
+        // I want it to sometimes execute a small number of calls because this tends to produce outcomes with small AVAX amounts,
+        // I want coverage of both large and small AVAX amounts
+        const numCalls = randomIntFromInterval(20, 300); // Increase this to increase the number of fuzz calls per test
         const user_addresses = await ethers.getSigners();
         console.log("There are %s users to choose from", user_addresses.length);
         var numSuccessfulCalls = numCalls;
@@ -297,7 +299,12 @@ describe('Fuzz Testing', function () {
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",
                     totalAVAXInvestments.toString(),sumAVAXValue.toString());
         // TODO: Why is this typically lower than the investment, and by multiple AVAX? Possibly slippage from the swaps?
-        const epsilonAVAX = ethers.utils.parseUnits("5", "ether");
+        //const epsilonAVAX = ethers.utils.parseUnits("5", "ether");
+        const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
+        const library = await Library.deploy();
+        await library.deployed();
+        const epsilonAVAX = await library.percentageOf(totalAVAXInvestments, BigNumber.from((0.6 * (10 ** 6))));
+        console.log("+/- 0.6% is %s AVAX", epsilonAVAX);
         // The total WAVAX value of the two contracts must be within 1 AVAX of the total AVAX invested
         testBigNumberIsWithinInclusiveBounds(sumAVAXValue,
                                              totalAVAXInvestments.sub(epsilonAVAX),
