@@ -1,11 +1,12 @@
 import { ethers } from "hardhat";
 
+export const joeRouterAddress = ethers.utils.getAddress("0x60aE616a2155Ee3d9A68541Ba4544862310933d4");
+
 // TODO: Rather than hard-code, get these from here:
 // https://github.com/traderjoe-xyz/joe-tokenlists/blob/main/joe.tokenlist.json
 export const addresses = {
     wavax: ethers.utils.getAddress("0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7"),
     dai: ethers.utils.getAddress("0xd586E7F844cEa2F87f50152665BCbc2C279D8d70"),
-    joeRouter: ethers.utils.getAddress("0x60aE616a2155Ee3d9A68541Ba4544862310933d4"),
     wbtc: ethers.utils.getAddress("0x50b7545627a5162F82A992c33b87aDc75187B218"),
     weth: ethers.utils.getAddress("0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB"),
     usdt: ethers.utils.getAddress("0xc7198437980c041c805A1EDcbA50c1Ce5db95118"),

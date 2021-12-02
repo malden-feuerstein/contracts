@@ -100,6 +100,11 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         _unpause();
     }
 
+    // A conenvience function to read the number of investment assets that are set on this contract
+    function numInvestmentAssets() external view returns (uint256) {
+        return investmentAssets.length;
+    }
+
     function setCashManagerAddress(address localCashManagerAddress) external onlyOwner whenNotPaused {
         require(localCashManagerAddress != address(0), "Cannot set the cashManager to the null address.");
         cashManagerAddress = localCashManagerAddress;
@@ -109,6 +114,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     // Set the intrinsic value for a particular asset
     // If the asset is already in the list of tracked assets, update the intrinsic value
     // If the asset is not already in the list of tracked assets, add it to the list
+    // TODO: As it stands currently an asset can not be removed once added, it can only be modified
     function setInvestmentAsset(address asset,
                                 uint256 intrinsicValue, // In USDT
                                 uint256 confidence, // In micro percentage points
@@ -128,6 +134,10 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
             investmentAssetsData[asset].liquidatePath = liquidatePath;
             investmentAssetsData[asset].purchasePath = purchasePath;
         } else { // Not there already, add it
+            // Rough test that it's an ERC20 token
+            IERC20 token = IERC20(asset);
+            uint256 tokenBalance = token.balanceOf(address(this));
+            require(tokenBalance >= 0);
             uint256[] memory emptyArray;
             InvestmentAsset memory newAsset = InvestmentAsset(asset,
                                                               intrinsicValue,
@@ -191,6 +201,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
         require(investmentAssetsData[asset].sellAmount == 0, "cannot buy asset if sell is pending.");
         require(investmentAssetsData[asset].prices.length >= nWeeksOfScorn, "Must have a minimum number of price samples.");
+        require(!investmentAssetsData[asset].reservedForBuy, "Cannot determine a buy on an asset currently reserved for buy.");
         // Total value of what the CashManager is holding, denominated in WAVAX
         uint256 totalCashValue = ICashManager(cashManagerAddress).totalValueInWAVAX();
         //console.log("Got total cash value in WAVAX of %s", totalCashValue);
@@ -224,6 +235,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
             } else { // if I'm just sending WAVAX then I should receive the exact amount
                 minimumReceived = betSize;
             }
+            betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
             //console.log("betSize %s", betSize);
             investmentAssetsData[asset].buyAmount = betSize; // in WAVAX
             investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
@@ -241,6 +253,8 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     function clearBuy(address asset, uint256 boughtAmount) external whenNotPaused {
         require(hasRole(CASH_MANAGER_ROLE, msg.sender), "Caller is not a CashManager");
         require(boughtAmount <= investmentAssetsData[asset].buyAmount, "Cannot reduce buyAmount by more than it is.");
+        require(investmentAssetsData[asset].reservedForBuy, "Attempting to clear buy with no buy reservation.");
+        require(investmentAssetsData[asset].buyAmount > 0, "Attempting to clear buy with no buy amount.");
         investmentAssetsData[asset].buyAmount = 0;
         investmentAssetsData[asset].reservedForBuy = false;
         investmentAssetsData[asset].minimumReceived = 0;

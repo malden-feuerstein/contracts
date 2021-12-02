@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "hardhat/console.sol"; // TODO: Remove this for production
+//import "hardhat/console.sol"; // TODO: Remove this for production
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 
@@ -75,7 +75,6 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     uint256 private constant ONE_HUNDRED_PERCENT = 100 * (10**6);
 
     function initialize(address swapRouterAddress, address investmentManagerAddress) external virtual initializer {
-        // TODO: Make these upgradable
         __Ownable_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
@@ -500,7 +499,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(!reservedForBuy, "asset cannot already be reserved for this purchase.");
         require(exists, "This asset isn't in the investment manager.");
         require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
-        require(block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)); // A buy determination made over a day ago is invalid
+        require(block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60), "A buy determination made over a day ago is invalid");
         require(buyAmount <= totalValueInWAVAX(), "Cannot buy with more WAVAX than have on hand.");
         investmentReservedWAVAXAmount += buyAmount;
         // TODO: Authorize liquidations to achieve buyAmount
@@ -528,7 +527,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
          reservedForBuy) = investmentManager.investmentAssetsData(asset);
         require(exists, "This asset isn't in the investment manager.");
         require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
-        require(block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)); // A buy determination made over a day ago is invalid
+        require(reservedForBuy, "asset must be reserved for this purchase.");
+        //require(block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)); // A buy determination made over a day ago is invalid
         require(minimumReceived > 0, "Must have a minimum received to enforce.");
         // TODO: This constraint could cause issues if the total cash value in WAVAX changed from the time the InvestmentManager was
         // called to the time this is called
@@ -536,23 +536,28 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(investmentReservedWAVAXAmount >= buyAmount, "Must have WAVAX reserved for the investment buy.");
         investmentReservedWAVAXAmount -= buyAmount;
         investmentManager.clearBuy(asset, buyAmount);
-        if (asset == address(wavax)) { // just send it to the investment manager
-            require(wavax.balanceOf(address(this)) >= buyAmount, "Don't have sufficient WAVAX for this buyAmount.");
-            bool success = wavax.transfer(address(investmentManager), buyAmount);
-            require(success, "WAVAX transfer failed.");
-        } else { // swap and send to the InvestmentManager
-            bool success = wavax.approve(address(joeRouter), buyAmount);
-            require(success, "token approval failed.");
+        if (block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)) { // actually process it only if it's not stale
+            //require(wavax.balanceOf(address(this)) >= buyAmount, "Don't have sufficient WAVAX for this buyAmount.");
+            // It's possible that liquidaitons to produce WAVAX dry powder didn't convert as much as desired due to
+            // slippage constraints. In that situation, complete the buy as much as possible.
+            buyAmount = Math.min(buyAmount, wavax.balanceOf(address(this)));
+            if (asset == address(wavax)) { // just send it to the investment manager
+                bool success = wavax.transfer(address(investmentManager), buyAmount);
+                require(success, "WAVAX transfer failed.");
+            } else { // swap and send to the InvestmentManager
+                bool success = wavax.approve(address(joeRouter), buyAmount);
+                require(success, "token approval failed.");
 
-            // Do the swap
-            address[] memory path = investmentManager.getBuyPath(asset);
-            uint256[] memory amounts = joeRouter.swapExactTokensForTokens(buyAmount,
-                                                                          minimumReceived, // Define a minimum received
-                                                                          path,
-                                                                          address(investmentManager),
-                                                                          block.timestamp);
-            require(amounts[0] == buyAmount, "Didn't sell the amount of tokens inserted.");
-            require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected."); 
+                // Do the swap
+                address[] memory path = investmentManager.getBuyPath(asset);
+                uint256[] memory amounts = joeRouter.swapExactTokensForTokens(buyAmount,
+                                                                              minimumReceived, // Define a minimum received
+                                                                              path,
+                                                                              address(investmentManager),
+                                                                              block.timestamp);
+                require(amounts[0] == buyAmount, "Didn't sell the amount of tokens inserted.");
+                require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected."); 
+            }
         }
     }
 

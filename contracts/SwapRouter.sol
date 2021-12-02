@@ -70,12 +70,18 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable {
     function priceImpact(address asset0,
                          address asset1,
                          uint256 asset0Amount) public view returns (uint256, uint256) {
+        require(asset0Amount > 0, "Can't swap nothing.");
         IERC20 token1 = IERC20(asset1);
         (uint256 reserve0, uint256 reserve1) = getReserveAmounts(joeFactory, asset0, asset1);
         uint256 price = (reserve0 * (10 ** token1.decimals())) / reserve1;
         uint256 constantProduct = reserve0 * reserve1;
         uint256 newReserve0 = reserve0 + asset0Amount;
         uint256 newReserve1 = constantProduct / newReserve0;
+        if (reserve1 <= newReserve1) {
+            console.log("asset0 = %s, asset1 = %s", asset0, asset1);
+            console.log("reserve1 = %s, newReserve1 = %s", reserve1, newReserve1);
+            console.log("asset0Amount = %s", asset0Amount);
+        }
         assert(reserve1 > newReserve1);
         uint256 receivedAsset1 = reserve1 - newReserve1;
         uint256 newPrice = (asset0Amount * (10 ** token1.decimals())) / receivedAsset1;

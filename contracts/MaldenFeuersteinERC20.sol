@@ -111,6 +111,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
     }
 
     // This must be defined to enable withdrawing WAVAX to AVAX in this contract
+    // https://docs.soliditylang.org/en/v0.8.6/contracts.html?highlight=receive#receive-ether-function
     receive() external payable {
     }
 
@@ -127,10 +128,10 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
         circulatingSupply -= maldenCoinAmount;
         require(circulatingSupply <= TOTAL_SUPPLY, "Cannot have more MALD tokens than TOTAL_SUPPLY");
         // take the tokens from the person
-        bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);
-        require(success, "transferFrom failed.");
         require(wavax.balanceOf(address(cashManager)) >= wavaxAmount,
                 "CashManager doesn't have enough WAVAX to fill this redemption.");
+        bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);
+        require(success, "transferFrom failed.");
         success = wavax.transferFrom(address(cashManager), address(this), wavaxAmount);
         require(success, "transferFrom failed.");
         // convert it from WAVAX to AVAX

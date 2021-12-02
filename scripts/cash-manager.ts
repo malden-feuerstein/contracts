@@ -90,12 +90,10 @@ export async function setCashManagerAllocations(cashManager, owner, user, invest
 
 // Once the allocations have been set on the CashManager, do all of the necessary purchases and liquidations to
 // bring the holdings into alignment with the target allocations
-export async function makeCashManagerAllocations(cashManager, assets, allocations, user, investmentAmount) {
+export async function makeCashManagerAllocations(cashManager, assets, allocations, user) {
     const wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
     await cashManager.connect(user).updateCashPrices();
     await cashManager.connect(user).updateLiquidationsAndPurchases();
-    // Although I have more WAVAX than 10%, it's not counted as a liquidation
-    //await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(investmentAmount);
     let numLiquidationsToProcess = await cashManager.connect(user).numLiquidationsToProcess();
     if (numLiquidationsToProcess > 0) {
         await processAllLiquidations(cashManager, user);

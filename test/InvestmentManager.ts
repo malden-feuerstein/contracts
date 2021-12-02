@@ -130,9 +130,9 @@ describe('Test InvestmentManager', function () {
             revertedWith("Can update price at most once per week.");
         await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 6]); // wait the remainer of a week
         await investmentManager.connect(user).getLatestPrice(addresses.wavax); // second update
-        await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 7]); // wait the remainer of a week
+        await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 7]); // wait a week
         await investmentManager.connect(user).getLatestPrice(addresses.wavax); // third update
-        await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 7]); // wait the remainer of a week
+        await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 7]); // wait a week
         await investmentManager.connect(user).getLatestPrice(addresses.wavax); // fourth update
 
         // the Kelly bet says it's not worth the risk at all
@@ -140,7 +140,7 @@ describe('Test InvestmentManager', function () {
         expect(result.value).to.equal(0);
         // therefore, processing a buy on it shouldn't work
         await expect(contracts.cashManager.connect(user).processInvestmentBuy(addresses.wavax)).to.be.
-            revertedWith("Must have WAVAX reserved for the investment buy.");
+            revertedWith("asset must be reserved for this purchase.");
 
         // Set it to an intrinsicValue that will enable making a buy
         await investmentManager.connect(owner).setInvestmentAsset(addresses.wavax,

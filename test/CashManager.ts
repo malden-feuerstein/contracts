@@ -120,7 +120,7 @@ describe('Test CashManager', function () {
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await expect(cashManager.connect(user).updateLiquidationsAndPurchases()).to.be.revertedWith(
             "Asset is missing from the cashAssetsPrices.");
-        await makeCashManagerAllocations(cashManager, testAssets, testAllocations, user, userInvestmentAmount);
+        await makeCashManagerAllocations(cashManager, testAssets, testAllocations, user);
         await testTokenAmountWithinBounds(addresses.wavax, user, cashManager.address, "10");
 
         testAssets = [addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];

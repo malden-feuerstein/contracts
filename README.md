@@ -62,6 +62,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Rather than an ERC20, make the token an ANT and wrap it as an ARC-20. See [here](https://medium.com/avalancheavax/apricot-phase-five-p-c-atomic-transfers-atomic-transaction-batching-and-c-chain-fee-algorithm-912507489ecd) and [here](https://docs.avax.network/build/references/coreth-arc20s). This will allow the token to be used on the X, P, and other chains.
 - Test: Someone externally sending to the contract one of the cash or investment assets, thereby throwing the percentages off balance.
 - Test: Someone sends AVAX to MaldenFeuersteinERC20. It should be sent to the CashManager on the next call to invest()
+- When the kelly bet is larger than the total cash on hand, liquidate all cash assets to WAVAX and use all WAVAX to buy
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called
