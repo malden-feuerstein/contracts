@@ -93,13 +93,15 @@ describe('Test MaldenFeuersteinERC20', function () {
         await expect(await wavax.connect(user).balanceOf(contracts.cashManager.address)).to.equal(userInvestmentAmount);
         await expect(await wavax.connect(user).balanceOf(coin.address)).to.equal(0);
         await expect(await coin.provider.getBalance(coin.address)).to.equal(0); // Has no AVAX because it's WAVAX
+        let userAVAXBalanceBefore = await coin.provider.getBalance(user.address);
         await coin.connect(user).redeem();
         await expect(await coin.provider.getBalance(coin.address)).to.equal(0);
         await expect(await coin.connect(user).balanceOf(user.address)).to.equal(0);
         await expect(await coin.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
         await expect(await wavax.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
         await expect(await wavax.connect(user).balanceOf(coin.address)).to.equal(0);
-        await expect(await wavax.connect(user).balanceOf(user.address)).to.equal(userInvestmentAmount);
+        await expect(await wavax.connect(user).balanceOf(user.address)).to.equal(0);
+        await expect(await coin.provider.getBalance(user.address)).to.be.gt(userAVAXBalanceBefore);
     })
 
     it("Should be pausable", async function() {
@@ -149,6 +151,8 @@ describe('Test MaldenFeuersteinERC20', function () {
         await coin.connect(user).requestRedeem(userInvestmentAmount);
         await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
         await processAllLiquidations(contracts.cashManager, user);
+        // TODO: Uncomment this:
+        //await contracts.investmentManager.connect(user).prepareDryPowderForRedemption();
         expect(await tokens.dai.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.usdc.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.usdt.connect(user).balanceOf(user.address)).to.be.equal(0);

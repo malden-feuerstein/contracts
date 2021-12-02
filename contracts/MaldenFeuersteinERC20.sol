@@ -110,6 +110,10 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
         require(success, "wavax transfer to CashManager failed.");
     }
 
+    // This must be defined to enable withdrawing WAVAX to AVAX in this contract
+    receive() external payable {
+    }
+
     // Call this after sufficient WAVAX liquidity has been achieved in the CashManager
     // This needs to be callable when the contract is paused so that users can redeem their tokens
     function redeem() external {
@@ -127,13 +131,12 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
         require(success, "transferFrom failed.");
         require(wavax.balanceOf(address(cashManager)) >= wavaxAmount,
                 "CashManager doesn't have enough WAVAX to fill this redemption.");
-        success = wavax.transferFrom(address(cashManager), msg.sender, wavaxAmount);
+        success = wavax.transferFrom(address(cashManager), address(this), wavaxAmount);
         require(success, "transferFrom failed.");
-        // FIXME: Calling this WAVAX unwrapping function fails in my unit tests with selector not found - why?
         // convert it from WAVAX to AVAX
-        //wavax.withdraw(wavaxAmount);
+        wavax.withdraw(wavaxAmount);
         // send it to the user
-        //payable(msg.sender).transfer(wavaxAmount);
+        payable(msg.sender).transfer(wavaxAmount);
     }
 
     function getAuthorizedRedemptionAmounts(address user) external view returns (uint256, uint256) { // anyone can call this

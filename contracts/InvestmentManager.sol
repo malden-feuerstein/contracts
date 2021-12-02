@@ -246,6 +246,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         investmentAssetsData[asset].minimumReceived = 0;
     }
 
+    // Called by the CashManager before making a purchase
     function reserveForCashManagerPurchase(address asset, uint256 buyAmount) external whenNotPaused {
         require(hasRole(CASH_MANAGER_ROLE, msg.sender), "Caller is not a CashManager");
         require(investmentAssetsData[asset].exists, "Asset must be in investments lists.");
@@ -273,7 +274,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         }
     }
 
-    // Return the total value of everything in the cash manager denominated in WAVAX
+    // Return the total value of everything in the investment manager denominated in WAVAX
     // TODO: This is a near duplicate of the same function in the CashManager. Ideally I wouldn't have this code duplication,
     // but I'm unable to solve it because OpenZeppelin's upgradeability doesn't allow Library functions that modify state, nor
     // the use of delegatecall

@@ -41,9 +41,8 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - To show linter warnings: `yarn lint`
 
 ### TODO
-- Deploy the contracts on test net and put some capital in it
 - Connect the web front end to show the cash assets and investments in the fund
-- Why do I have an investment period? Shouldn't it just allow investing and redeeming the ERC20 tokens forever?
+- Why is there an investment period? Shouldn't it just allow investing and redeeming the ERC20 tokens forever?
 - Backtest it with real ETH, BTC data
 - Maybe increase percentage precision to 18 decimals to completely capture all WAVAX precision?
 - Actually make use of the stored prices. Currently they're stored but not used.
@@ -62,13 +61,14 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Make sure the last investor to redeem can get everything out
 - Rather than an ERC20, make the token an ANT and wrap it as an ARC-20. See [here](https://medium.com/avalancheavax/apricot-phase-five-p-c-atomic-transfers-atomic-transaction-batching-and-c-chain-fee-algorithm-912507489ecd) and [here](https://docs.avax.network/build/references/coreth-arc20s). This will allow the token to be used on the X, P, and other chains.
 - Test: Someone externally sending to the contract one of the cash or investment assets, thereby throwing the percentages off balance.
+- Test: Someone sends AVAX to MaldenFeuersteinERC20. It should be sent to the CashManager on the next call to invest()
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called
 - Should I deploy the ERC20 token onto the X-Chain?
 - Ensure that investment pausing and total stop work
 - Make sure these are upgradeable: parameters such as the 1% difference, how often the cash balances can be updated, the seconds per block number
-- Make sure you can change the contracts choice of DEX used to route swaps
+- Make sure you can change the contracts' choice of DEX used to route swaps
 - Remove all console.log in Solidity
 - Can I prevent tokens from getting stuck in the contract? See [here](https://soliditydeveloper.com/eip-165)
 - Use Gnosis Safe with 2 out of 4 keys required for the owner of the contract. This is to help prevent hacks like the [bzx hack](https://bzx.network/blog/prelminary-post-mortem) where a single key stolen ruined the entire project. Keep the keys on separate hardware wallets and never use them on the same machine.

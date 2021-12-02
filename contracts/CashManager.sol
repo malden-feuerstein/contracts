@@ -468,7 +468,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         }
     }
 
-    // Call this before processing a redemption so to authorize any liquidations necessary to get enough WAVAX out
+    // Call this before processing a redemption to authorize any liquidations necessary to get enough WAVAX out
     // This needs to be callable when paused so that users can redeem their tokens
     function prepareDryPowderForRedemption() external {
         uint256 maldenCoinAmount;
