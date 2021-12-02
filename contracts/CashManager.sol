@@ -534,7 +534,6 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(minimumReceived > 0, "Must have a minimum received to enforce.");
         // TODO: This constraint could cause issues if the total cash value in WAVAX changed from the time the InvestmentManager was
         // called to the time this is called
-        require(buyAmount <= totalValueInWAVAX(), "Cannot buy with more WAVAX than have on hand.");
         require(investmentReservedWAVAXAmount >= buyAmount, "Must have WAVAX reserved for the investment buy.");
         investmentReservedWAVAXAmount -= buyAmount;
         investmentManager.clearBuy(asset, buyAmount);
@@ -542,7 +541,14 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
             //require(wavax.balanceOf(address(this)) >= buyAmount, "Don't have sufficient WAVAX for this buyAmount.");
             // It's possible that liquidaitons to produce WAVAX dry powder didn't convert as much as desired due to
             // slippage constraints. In that situation, complete the buy as much as possible.
-            buyAmount = Math.min(buyAmount, wavax.balanceOf(address(this)));
+            uint256 wavaxOnHand = wavax.balanceOf(address(this));
+            // TODO: The  minimum here should actually be above 0, it should be some multiple of transation cost
+            // It doesn't make sense to do a swap when the amount being swapped is less than gas cost
+            if (buyAmount > wavaxOnHand) {
+                uint256 percentageOfTargetWAVAX = Library.valueIsWhatPercentOf(wavaxOnHand, buyAmount);
+                buyAmount = Math.min(buyAmount, wavaxOnHand);
+                minimumReceived = Library.percentageOf(minimumReceived, percentageOfTargetWAVAX);
+            }
             if (buyAmount > 0) { // Do nothing if there is no WAVAX on hand for this investment
                 if (asset == address(wavax)) { // just send it to the investment manager
                     bool success = wavax.transfer(address(investmentManager), buyAmount);
