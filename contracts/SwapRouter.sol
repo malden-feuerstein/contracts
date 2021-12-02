@@ -15,6 +15,7 @@ import "contracts/IERC20.sol";
 import "contracts/Library.sol";
 
 // Everything in this contract should be view or internal
+// TODO: I will not necessarily want only one router. What about Pangolin? What about other routers altogether?
 
 contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable {
     struct PriceQuote {

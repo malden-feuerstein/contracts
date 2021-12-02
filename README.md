@@ -46,7 +46,6 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Why do I have an investment period? Shouldn't it just allow investing and redeeming the ERC20 tokens forever?
 - Backtest it with real ETH, BTC data
 - Maybe increase percentage precision to 18 decimals to completely capture all WAVAX precision?
-- Add pausability to the CashManager and InvestmentManager
 - Actually make use of the stored prices. Currently they're stored but not used.
 - Currently I make the assumption that an asset -> USDT pair exists, but this may not always be true. Need to use liquidation path to WAVAX to get to USDT
 - !InvestmentManager: It should have a switch on an asset where it's in watch-only mode: The price history can be collected from week to week but it can't buy bought

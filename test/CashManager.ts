@@ -8,23 +8,16 @@ import { deployAll } from "../scripts/deploy";
 import { processAllPurchases,
          processAllLiquidations,
          testBigNumberIsWithinInclusiveBounds,
-         balanceCashHoldingsTest } from "../scripts/cash-manager";
+         balanceCashHoldingsTest,
+         makeCashManagerAllocations,
+         setCashManagerAllocations,
+         testTokenAmountWithinBounds } from "../scripts/cash-manager";
 
 
 async function mineNBlocks(n) {
     for (let i = 0; i < n; i++) {
         await network.provider.send("evm_mine"); // mine a block
     }
-}
-
-let epsilonEther = ethers.utils.parseUnits("0.0007", "ether"); // A three dollar discrepancy at $4000/eth
-
-async function testTokenAmountWithinBounds(tokenAddress, user, balanceHolder, expectedAmount) {
-    const tokenContract = await ethers.getContractAt("IERC20", tokenAddress);
-    const tokenAmount = await tokenContract.connect(user).balanceOf(balanceHolder);
-    const upperBound = ethers.utils.parseUnits(expectedAmount, "ether").add(epsilonEther);
-    const lowerBound = ethers.utils.parseUnits(expectedAmount, "ether").sub(epsilonEther);
-    testBigNumberIsWithinInclusiveBounds(tokenAmount, lowerBound, upperBound);
 }
 
 // https://hardhat.org/tutorial/testing-contracts.html
@@ -127,26 +120,8 @@ describe('Test CashManager', function () {
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await expect(cashManager.connect(user).updateLiquidationsAndPurchases()).to.be.revertedWith(
             "Asset is missing from the cashAssetsPrices.");
-        await cashManager.connect(user).updateCashPrices();
-        await cashManager.connect(user).updateLiquidationsAndPurchases();
-        // Although I have more WAVAX than 10%, it's not counted as a liquidation
-        await expect(await cashManager.connect(user).numPurhcasesToProcess()).to.be.equal(6);
-        await expect(await cashManager.connect(user).numLiquidationsToProcess()).to.be.equal(0);
-        await expect(cashManager.connect(user).processLiquidation()).to.be.revertedWith(
-            "There are no liquidations queued from a call to updateLiquidationsAndPurchases().");
-        await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
-        await expect(await cashManager.connect(user).numLiquidationsToProcess()).to.be.equal(0);
-        await processAllPurchases(cashManager, user);
-        const one_percent = BigNumber.from("1000000");
-        for (let i = 0; i < testAssets.length; i++) {
-            const asset = testAssets[i];
-            const percentage = testAllocations[i];
-            const lower = ethers.BigNumber.from(testAllocations[i]).sub(one_percent);
-            const upper = ethers.BigNumber.from(testAllocations[i]).add(one_percent);
-            const actualPercentage = await cashManager.connect(user).assetPercentageOfPortfolio(asset);
-            testBigNumberIsWithinInclusiveBounds(actualPercentage, lower, upper);
-        }
-        await testTokenAmountWithinBounds(wavax.address, user, cashManager.address, "10");
+        await makeCashManagerAllocations(cashManager, testAssets, testAllocations, user, userInvestmentAmount);
+        await testTokenAmountWithinBounds(addresses.wavax, user, cashManager.address, "10");
 
         testAssets = [addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];
         testAllocations = [20, 10, 23, 24, 23].map(x => x * (10 ** 6));
@@ -209,33 +184,7 @@ describe('Test CashManager', function () {
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await cashManager.connect(user).updateCashPrices();
 
-        var testAssets = [addresses.wavax,
-                          addresses.wbtc,
-                          addresses.weth,
-                          addresses.usdt,
-                          addresses.usdc,
-                          addresses.dai];
-        var testAllocations = [10, 10, 10, 20, 20, 30].map(x => x * (10 ** 6));
-        var testLiquidationPaths = [liquidatePaths.wavax,
-                                    liquidatePaths.wbtc,
-                                    liquidatePaths.weth,
-                                    liquidatePaths.usdt,
-                                    liquidatePaths.usdc,
-                                    liquidatePaths.dai];
-        var testPurchasePaths = [purchasePaths.wavax,
-                                 purchasePaths.wbtc,
-                                 purchasePaths.weth,
-                                 purchasePaths.usdt,
-                                 purchasePaths.usdc,
-                                 purchasePaths.dai];
-        await cashManager.connect(owner).setCashAllocations(testAssets,
-                                                            testAllocations,
-                                                            testLiquidationPaths,
-                                                            testPurchasePaths);
-        expect(await cashManager.connect(user).numberOfCashAssets()).to.equal(6);
-        expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(7);
-        expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(5);
-        await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
+        await setCashManagerAllocations(cashManager, owner, user, userInvestmentAmount);
         await cashManager.connect(user).updateCashPrices();
         await cashManager.connect(user).updateLiquidationsAndPurchases();
         // Although I have more WAVAX than 10%, it's not counted as a liquidation
@@ -246,18 +195,18 @@ describe('Test CashManager', function () {
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await expect(await cashManager.connect(user).numLiquidationsToProcess()).to.be.equal(0);
         await processAllPurchases(cashManager, user);
-        await testTokenAmountWithinBounds(wavax.address, user, cashManager.address, "10");
+        await testTokenAmountWithinBounds(wavax.address, user, cashManager.address, "20");
 
-        // remove wbtc, add ampl, and reduce dai from 40% to 10%
-        testAssets = [addresses.wavax, addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];
-        testAllocations = [10, 10, 30, 20, 20, 10].map(x => x * (10 ** 6));
-        testLiquidationPaths = [liquidatePaths.wavax,
+        // remove wbtc, add ampl, and reduce dai from 15% to 10%
+        const testAssets = [addresses.wavax, addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];
+        const testAllocations = [20, 15, 20, 20, 15, 10].map(x => x * (10 ** 6));
+        const testLiquidationPaths = [liquidatePaths.wavax,
                                 liquidatePaths.weth,
                                 liquidatePaths.ampl,
                                 liquidatePaths.usdt,
                                 liquidatePaths.usdc,
                                 liquidatePaths.dai];
-        testPurchasePaths = [purchasePaths.wavax,
+        const testPurchasePaths = [purchasePaths.wavax,
                              purchasePaths.weth,
                              purchasePaths.ampl,
                              purchasePaths.usdt,
@@ -293,8 +242,8 @@ describe('Test CashManager', function () {
         const finalDAIPercent = await cashManager.connect(user).assetPercentageOfPortfolio(dai.address);
         const finalAMPLPercent = await cashManager.connect(user).assetPercentageOfPortfolio(addresses.ampl);
         testBigNumberIsWithinInclusiveBounds(finalDAIPercent, ethers.BigNumber.from("9000000"), ethers.BigNumber.from("11000000"));
-        testBigNumberIsWithinInclusiveBounds(finalWAVAXPercent, ethers.BigNumber.from("9000000"), ethers.BigNumber.from("11000000"));
-        testBigNumberIsWithinInclusiveBounds(finalAMPLPercent, ethers.BigNumber.from("29000000"), ethers.BigNumber.from("31000000"));
+        testBigNumberIsWithinInclusiveBounds(finalWAVAXPercent, ethers.BigNumber.from("19000000"), ethers.BigNumber.from("21000000"));
+        testBigNumberIsWithinInclusiveBounds(finalAMPLPercent, ethers.BigNumber.from("19000000"), ethers.BigNumber.from("21000000"));
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
         await balanceCashHoldingsTest(cashManager, user, testAssets, testAllocations);
     })

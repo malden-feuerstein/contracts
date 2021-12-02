@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "hardhat/console.sol"; // TODO: Remove this for production
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
@@ -25,7 +26,7 @@ import "contracts/IMaldenFeuersteinERC20.sol";
 // 4) After all liquidations are completed, anyone calls processPurchase() repeatedly until all queued purchases are processed.
 // 5) If any of the liquidations or purchases were completed only partially because the orders were too big given the price impact requirements, steps 1-4 can be repeated on the following day to move closer to the desired cash allocations.
 
-contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
+contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, PausableUpgradeable {
     event AddedCashAsset(address);
     event RemovedCashAsset(address);
     event IncreasedCashAsset(address);
@@ -76,6 +77,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     function initialize(address swapRouterAddress, address investmentManagerAddress) external virtual initializer {
         // TODO: Make these upgradable
         __Ownable_init();
+        __UUPSUpgradeable_init();
+        __Pausable_init();
         lastCashBalanceUpdateTimestamp = 0;
         lastCashAssetsPricesUpdateBlockNumber = 0;
         newBlockEveryNMicroseconds = 2000;
@@ -94,7 +97,15 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-    function setCoinAddress(address coinAddress) external onlyOwner { // only owner can call this
+    function pause() external whenNotPaused onlyOwner {
+        _pause();
+    }
+
+    function unpause() external whenPaused onlyOwner {
+        _unpause();
+    }
+
+    function setCoinAddress(address coinAddress) external onlyOwner whenNotPaused { // only owner can call this
         coin = IMaldenFeuersteinERC20(coinAddress);
     }
 
@@ -110,7 +121,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     function setCashAllocations(address[] calldata assets,
                                 uint256[] calldata percentages,
                                 address[][] calldata passedLiquidatePaths,
-                                address[][] calldata passedPurchasePaths) external onlyOwner {
+                                address[][] calldata passedPurchasePaths) external onlyOwner whenNotPaused {
         require(assets.length < 50, "Can not have more than 50 cash assets."); // This prevents issues with loops and gas
         require(assets.length == percentages.length, "Assets and percentages arrays must be the same length.");
         // TODO: I need these to be uncommented when I get this contract within the size limit
@@ -183,7 +194,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     }
 
     // This can be called by anyone at anytime to keep the prices up to date
-    function updateCashPrices() external {
+    function updateCashPrices() external whenNotPaused {
         // Get the price in USD of every cash asset on hand
         SwapRouter.PriceQuote memory wavaxInUSDTQuote = router.getPriceQuote(address(wavax), address(usdt));
         if (cashAssetsPrices[address(wavax)] > 0) {
@@ -220,7 +231,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
 
     // This can be called by anyone at most once per day, and the cash assets prices must have been updated within the
     // past minute
-    function updateLiquidationsAndPurchases() external { // anyone can call this
+    function updateLiquidationsAndPurchases() external whenNotPaused { // anyone can call this
         // Limit how often this is called
         // TODO Make this time limit a parameter that can be set. Once per day could be too much. People spamming this
         // would be a nuisance on transaction costs
@@ -311,6 +322,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     }
 
     // Execute a swap to complete a previously stored liquidation
+    // This needs to be callable even when paused so that users can redeem their tokens
     function processLiquidation() external { // Anyone can call this
         require(liquidationsToPerform.length > 0,
                 "There are no liquidations queued from a call to updateLiquidationsAndPurchases().");
@@ -344,7 +356,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     }
 
     // Execute a swap to complete a previously stored purchase
-    function processPurchase() external { // Anyone can call this
+    function processPurchase() external whenNotPaused { // Anyone can call this
         require(liquidationsToPerform.length == 0,
                 "Must complete all liquidations before performing purchases so that capital is on hand.");
         require(purchasesToPerform.length > 0, "There are no purchases queued from a call to updateLiquidationsAndPurchases().");
@@ -419,7 +431,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
 
     // Take the amount of WAVAX needed and the current total WAVAX on hand
     // Authorize liquidations to get the total WAVAX on hand up amountNeeded
-    function prepareDryPowder(uint256 amountNeeded, uint256 wavaxOnHand) internal { // can only be called by this contract
+    // This must be callable when paused so that users can redeem their tokens
+    function prepareDryPowder(uint256 amountNeeded, uint256 wavaxOnHand) internal { // only be called by this contract
         // iterate the cash assets, authorizing liquidations until we have enough WAVAX
         // TODO: This iterates through the cashAssets randomly,
         // but I might actually want to do it in order of biggest to smallest?
@@ -456,6 +469,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     }
 
     // Call this before processing a redemption so to authorize any liquidations necessary to get enough WAVAX out
+    // This needs to be callable when paused so that users can redeem their tokens
     function prepareDryPowderForRedemption() external {
         uint256 maldenCoinAmount;
         uint256 wavaxAmount;
@@ -470,7 +484,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     }
 
     // Call this before processInvestmentBuy to reserve 
-    function prepareDryPowderForInvestmentBuy(address asset) external { // anyone can call this
+    function prepareDryPowderForInvestmentBuy(address asset) external whenNotPaused { // anyone can call this
         bool exists;
         uint256 buyAmount;
         uint256 buyDeterminationTimestamp;
@@ -500,7 +514,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager {
     }
 
     // Uses cash on hand to make a purchase of a particular asset
-    function processInvestmentBuy(address asset) external { // anyone can call this
+    function processInvestmentBuy(address asset) external whenNotPaused { // anyone can call this
         bool exists;
         uint256 buyAmount;
         uint256 buyDeterminationTimestamp;

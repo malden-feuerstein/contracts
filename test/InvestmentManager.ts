@@ -5,7 +5,11 @@ import { BigNumber } from "ethers";
 import { ethers, network, upgrades } from "hardhat";
 import { addresses, liquidatePaths, purchasePaths, getTokens } from "../scripts/addresses";
 import { deployAll } from "../scripts/deploy"
-import { processAllPurchases, processAllLiquidations, balanceCashHoldingsTest } from "../scripts/cash-manager";
+import { processAllPurchases,
+         processAllLiquidations,
+         balanceCashHoldingsTest,
+         setCashManagerAllocations,
+         makeCashManagerAllocations} from "../scripts/cash-manager";
 
 // https://hardhat.org/tutorial/testing-contracts.html
 // https://github.com/gnosis/mock-contract FOR HELP

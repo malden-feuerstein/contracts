@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import "hardhat/console.sol"; // TODO: Remove this for production
@@ -18,7 +19,7 @@ import "contracts/CashManager.sol";
 // CashManager.processLiquidation() in a loop until liquidations are complete
 // redeem() to finally exchange the ERC20 token for the equivalent value in WAVAX
 
-contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     struct Redemption {
         uint256 maldenCoinAmount;
         uint256 wavaxAmount;
@@ -28,29 +29,27 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
     string private constant TOKEN_SYMBOL = "MALD";
     uint256 private constant TOTAL_SUPPLY = 1e5 ether; // TODO: How many shares did Berkshire Hathaway have originally?
     uint256 public circulatingSupply;
-    bool private isRedeemOnly; // boolean to indicate that it's in redeem-only mode
     bool private stopped; // emergency stop everything
     bool private investmentPeriodOver; // Set to true once the initial investment period is over
     // https://samczsun.com/so-you-want-to-use-a-price-oracle/
     mapping(address => uint256) private timestamps;
     mapping(address => uint256) private investmentBalances; // These are the balances of AVAX invested by investors
     mapping(address => Redemption) private authorizedRedemptions;
-    // TODO: Make my router a separate contract so that I can change it out
-    // TODO: I will not necessarily want only one router. What about Pangolin? What about new routers altogether?
     CashManager private cashManager;
     InvestmentManager private investmentManager;
     IWAVAX private wavax;
 
     function initialize(address cashManagerAddress, address investmentManagerAddress) external virtual initializer {
         __Ownable_init();
+        __UUPSUpgradeable_init();
         __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
         __ERC165_init();
+        __Pausable_init();
           // msg.sender
           // The ERC20 contract starts with all of the tokens
         _mint(address(this), TOTAL_SUPPLY);
         cashManager = CashManager(cashManagerAddress);
         wavax = IWAVAX(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
-        isRedeemOnly = false;
         stopped = false;
         investmentPeriodOver = false;
         investmentManager = InvestmentManager(investmentManagerAddress);
@@ -64,24 +63,22 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
     // It's not expected this will be used but it's conceivable an emergency could occur such as bad information from an orcale
     // that would break the redemptions for a temporary period of time. During such a time it would be intelligent to stop
     // everything including redemptions, and then re-open once the oracle has been fixed.
-    function stop() external onlyOwner {
+    function stop() external onlyOwner whenNotPaused {
+        _pause();
         stopped = true;
     }
   
-    // Stop any additional investment activity. This puts the contract into a redeem-only mode
-    function redeemOnly() external onlyOwner {
-        isRedeemOnly = true;
-    }
-  
-    function unStop() external onlyOwner {
+    function unstop() external onlyOwner whenPaused {
+        _unpause();
         stopped = false;
     }
-  
-    // Restart additional investment activity, taking it out of redeem-only mode
-    // It's not expected this will be used, but this is in case of a temporary emergency needed to stop()
-    //    it and later able to restart it
-    function unRedeemOnly() external onlyOwner {
-        isRedeemOnly = false;
+
+    function pause() external whenNotPaused onlyOwner {
+        _pause();
+    }
+
+    function unpause() external whenPaused onlyOwner {
+        _unpause();
     }
   
     function endInvestmentPeriod() external onlyOwner {
@@ -90,9 +87,8 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
   
     // The caller should receive tokens in exchange for putting in money
     // Anyone can call this
-    function invest() payable external {
+    function invest() payable external whenNotPaused {
         require(!stopped, "Can not invest during emergency stop.");
-        require(!isRedeemOnly, "Can not invest during redeem-only.");
         // Do nothing if all of the investment tokens have been depleted
         require(!investmentPeriodOver, "Can not invest after invest period has ended.");
         require(balanceOf(address(this)) > 0, "The contract must have MALD to give for investment.");
@@ -115,7 +111,9 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
     }
 
     // Call this after sufficient WAVAX liquidity has been achieved in the CashManager
+    // This needs to be callable when the contract is paused so that users can redeem their tokens
     function redeem() external {
+        require(!stopped, "Can not redeem during emergency stop.");
         uint256 maldenCoinAmount = authorizedRedemptions[msg.sender].maldenCoinAmount;
         uint256 wavaxAmount = authorizedRedemptions[msg.sender].wavaxAmount;
         require(maldenCoinAmount > 0, "Not authorized to redeem anything.");
@@ -127,6 +125,8 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
         // take the tokens from the person
         bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);
         require(success, "transferFrom failed.");
+        require(wavax.balanceOf(address(cashManager)) >= wavaxAmount,
+                "CashManager doesn't have enough WAVAX to fill this redemption.");
         success = wavax.transferFrom(address(cashManager), msg.sender, wavaxAmount);
         require(success, "transferFrom failed.");
         // FIXME: Calling this WAVAX unwrapping function fails in my unit tests with selector not found - why?
@@ -141,6 +141,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
     }
   
     // Redeems the tokens in this contract for the equivalent value of underlying assets
+    // This needs to be callable when paused so that users can redeem their tokens
     function requestRedeem(uint256 amount) external { // Anyone can call this
         require(!stopped, "Can not redeem during emergency stop.");
         require(amount <= balanceOf(msg.sender), "Must own at least as many tokens as attempting to redeem.");

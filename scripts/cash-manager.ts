@@ -5,6 +5,7 @@ import {
 } from "ethers"
 import { ethers, upgrades } from "hardhat"
 import { expect } from "chai";
+import { addresses, liquidatePaths, purchasePaths } from "./addresses";
 
 async function processAllLiquidations(cashManager, user) {
     const numLiquidations = await cashManager.connect(user).numLiquidationsToProcess();
@@ -37,6 +38,78 @@ async function balanceCashHoldingsTest(cashManager, user, expectedAssets, expect
         const percentage = expectedPercentages[i];
         const lower = ethers.BigNumber.from(expectedPercentages[i]).sub(one_percent);
         const upper = ethers.BigNumber.from(expectedPercentages[i]).add(one_percent);
+        const actualPercentage = await cashManager.connect(user).assetPercentageOfPortfolio(asset);
+        testBigNumberIsWithinInclusiveBounds(actualPercentage, lower, upper);
+    }
+}
+
+let epsilonEther = ethers.utils.parseUnits("0.0007", "ether"); // A three dollar discrepancy at $4000/eth
+
+export async function testTokenAmountWithinBounds(tokenAddress, user, balanceHolder, expectedAmount) {
+    const tokenContract = await ethers.getContractAt("IERC20", tokenAddress);
+    const tokenAmount = await tokenContract.connect(user).balanceOf(balanceHolder);
+    const upperBound = ethers.utils.parseUnits(expectedAmount, "ether").add(epsilonEther);
+    const lowerBound = ethers.utils.parseUnits(expectedAmount, "ether").sub(epsilonEther);
+    testBigNumberIsWithinInclusiveBounds(tokenAmount, lowerBound, upperBound);
+}
+
+// This is a convenience function for tests to set up cash manager allocations
+// These are also the cash manager asset allocations that are planned to be used in production
+export async function setCashManagerAllocations(cashManager, owner, user, investmentAmount) :
+    Promise<{assets: string[], allocations: number[]}> {
+    var assets = [addresses.wavax,
+                  addresses.wbtc,
+                  addresses.weth,
+                  addresses.usdt,
+                  addresses.usdc,
+                  addresses.dai];
+    var allocations = [20, 15, 15, 20, 15, 15].map(x => x * (10 ** 6));
+    var liquidationPaths = [liquidatePaths.wavax,
+                            liquidatePaths.wbtc,
+                            liquidatePaths.weth,
+                            liquidatePaths.usdt,
+                            liquidatePaths.usdc,
+                            liquidatePaths.dai];
+    var localPurchasePaths = [purchasePaths.wavax,
+                              purchasePaths.wbtc,
+                              purchasePaths.weth,
+                              purchasePaths.usdt,
+                              purchasePaths.usdc,
+                              purchasePaths.dai];
+    await cashManager.connect(owner).setCashAllocations(assets,
+                                                        allocations,
+                                                        liquidationPaths,
+                                                        localPurchasePaths);
+    expect(await cashManager.connect(user).numberOfCashAssets()).to.equal(6);
+    expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(7);
+    expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(5);
+    const wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
+    await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(investmentAmount);
+    return {assets, allocations}
+}
+
+// Once the allocations have been set on the CashManager, do all of the necessary purchases and liquidations to
+// bring the holdings into alignment with the target allocations
+export async function makeCashManagerAllocations(cashManager, assets, allocations, user, investmentAmount) {
+    const wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
+    await cashManager.connect(user).updateCashPrices();
+    await cashManager.connect(user).updateLiquidationsAndPurchases();
+    // Although I have more WAVAX than 10%, it's not counted as a liquidation
+    //await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(investmentAmount);
+    let numLiquidationsToProcess = await cashManager.connect(user).numLiquidationsToProcess();
+    if (numLiquidationsToProcess > 0) {
+        await processAllLiquidations(cashManager, user);
+    } else {
+        await expect(cashManager.connect(user).processLiquidation()).to.be.revertedWith(
+            "There are no liquidations queued from a call to updateLiquidationsAndPurchases().");
+    }
+    await processAllPurchases(cashManager, user);
+    const one_percent = BigNumber.from("1000000");
+    for (let i = 0; i < assets.length; i++) {
+        const asset = assets[i];
+        const percentage = allocations[i];
+        const lower = ethers.BigNumber.from(allocations[i]).sub(one_percent);
+        const upper = ethers.BigNumber.from(allocations[i]).add(one_percent);
         const actualPercentage = await cashManager.connect(user).assetPercentageOfPortfolio(asset);
         testBigNumberIsWithinInclusiveBounds(actualPercentage, lower, upper);
     }

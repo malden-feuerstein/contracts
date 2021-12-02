@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "hardhat/console.sol"; // TODO: Remove this for production
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
@@ -26,7 +27,7 @@ import "contracts/ICashManager.sol";
 // Call determineSell() to determine if the criteria for selling an asset have been met
 // TODO: Call processSell() to perform determined sells and send the WAVAX to the CashManager
 
-contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable {
+contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable {
     event DeterminedBuy(address, uint256, uint256); // address of asset to  buy, amount to buy, kelly fraction
     struct InvestmentAsset {
       address assetAddress;
@@ -70,6 +71,9 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
 
     function initialize(address swapRouterAddress) external virtual initializer {
         __Ownable_init();
+        __UUPSUpgradeable_init();
+        __AccessControl_init();
+        __Pausable_init();
         require(swapRouterAddress != address(0), "Cannot set the swap router to the null address.");
         newBlockEveryNMicroseconds = 2000;
         priceImpactTolerance = 1 * (10 ** 6); // This is one micro percent, or 1 percent with 6 decimals
@@ -86,9 +90,17 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         marginOfSafety = 25 * (10 ** 6);
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner whenNotPaused {}
 
-    function setCashManagerAddress(address localCashManagerAddress) external onlyOwner {
+    function pause() external whenNotPaused onlyOwner {
+        _pause();
+    }
+
+    function unpause() external whenPaused onlyOwner {
+        _unpause();
+    }
+
+    function setCashManagerAddress(address localCashManagerAddress) external onlyOwner whenNotPaused {
         require(localCashManagerAddress != address(0), "Cannot set the cashManager to the null address.");
         cashManagerAddress = localCashManagerAddress;
         _setupRole(CASH_MANAGER_ROLE, cashManagerAddress);
@@ -101,7 +113,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
                                 uint256 intrinsicValue, // In USDT
                                 uint256 confidence, // In micro percentage points
                                 address[] calldata liquidatePath,
-                                address[] calldata purchasePath) external onlyOwner { // only owner can call this
+                                address[] calldata purchasePath) external onlyOwner whenNotPaused { // only owner can call this
         // All buys begin with WAVAX and all sells end with WAVAX
         if (asset != address(wavax)) {
             require(liquidatePath[liquidatePath.length - 1] == address(wavax));
@@ -136,7 +148,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     }
 
     // Store the latest price for a particular investment asset
-    function getLatestPrice(address asset) external { // anyone can call this
+    function getLatestPrice(address asset) external whenNotPaused { // anyone can call this
         require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
         assert(investmentAssetsData[asset].prices.length == investmentAssetsData[asset].priceTimestamps.length);
 
@@ -155,7 +167,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     // Determine if the situation is right for a particular asset to be sold
     // If so, record it so that processSell() can sell it
     // TODO: Are there any issues with someone being able to call this at any time?
-    function determineSell(address asset) external { // anyone can call this at any time
+    function determineSell(address asset) external whenNotPaused { // anyone can call this at any time
         require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
         // TODO: I don't want to assume that asset -> usdt exists directly, need to use liquidatePath
         SwapRouter.PriceQuote memory currentPrice = router.getPriceQuote(asset, address(usdt));
@@ -175,7 +187,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     // WAVAX to this contract to give it purchasing power
     // With the Kelly bet here we want to be rougly right rather than exactly wrong
     // Will place fractional Kelly bets
-    function determineBuy(address asset) external { // anyone can call this
+    function determineBuy(address asset) external whenNotPaused { // anyone can call this
         require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
         require(investmentAssetsData[asset].sellAmount == 0, "cannot buy asset if sell is pending.");
         require(investmentAssetsData[asset].prices.length >= nWeeksOfScorn, "Must have a minimum number of price samples.");
@@ -226,7 +238,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     }
 
     // Allow the CashManager to decrease the buy amount after making a purchase
-    function clearBuy(address asset, uint256 boughtAmount) external {
+    function clearBuy(address asset, uint256 boughtAmount) external whenNotPaused {
         require(hasRole(CASH_MANAGER_ROLE, msg.sender), "Caller is not a CashManager");
         require(boughtAmount <= investmentAssetsData[asset].buyAmount, "Cannot reduce buyAmount by more than it is.");
         investmentAssetsData[asset].buyAmount = 0;
@@ -234,7 +246,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         investmentAssetsData[asset].minimumReceived = 0;
     }
 
-    function reserveForCashManagerPurchase(address asset, uint256 buyAmount) external {
+    function reserveForCashManagerPurchase(address asset, uint256 buyAmount) external whenNotPaused {
         require(hasRole(CASH_MANAGER_ROLE, msg.sender), "Caller is not a CashManager");
         require(investmentAssetsData[asset].exists, "Asset must be in investments lists.");
         require(investmentAssetsData[asset].buyAmount > 0, "Must have a determined buyAmount.");
@@ -243,13 +255,14 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         investmentAssetsData[asset].reservedForBuy = true;
     }
 
-    function processSell() external { // anyone can call this
+    function processSell() external whenNotPaused { // anyone can call this
         // TODO: A sell is invalid if it's older than a day
         // TODO: If selling WAVAX, just transfer is to the CashManager without doing a swap
     }
 
     // If there are no buys to perform, this authorizes the CashManager to take back any excess WAVAX
-    function drainExtraCash() external { // anyone can call this
+    // TODO: Nothing is calling this - should it be here?
+    function drainExtraCash() external whenNotPaused { // anyone can call this
         // TODO: Prevent this from intefering with other calls by requiring a 1 hour wait after any call to
         // determineSell, determineBuy, or setInvestmentAsset
         require(cashManagerAddress != address(0), "The cashManagerAddress has not been set yet.");
