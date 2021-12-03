@@ -20,6 +20,7 @@ import "contracts/CashManager.sol";
 // redeem() to finally exchange the ERC20 token for the equivalent value in WAVAX
 
 contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+    event Redeemed(uint256); // Emitted when a user successfully redeems, with the amount of redeemed
     struct Redemption {
         uint256 maldenCoinAmount;
         uint256 wavaxAmount;
@@ -130,6 +131,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
         // take the tokens from the person
         require(wavax.balanceOf(address(cashManager)) >= wavaxAmount,
                 "CashManager doesn't have enough WAVAX to fill this redemption.");
+        emit Redeemed(wavaxAmount);
         bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);
         require(success, "transferFrom failed.");
         success = wavax.transferFrom(address(cashManager), address(this), wavaxAmount);
@@ -163,6 +165,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
         // What percent of the total number of ERC20 tokens is amount?
         uint256 redemptionPercentage = Library.valueIsWhatPercentOf(amount, circulatingSupply);
         uint256 wavaxAmountToRedeem = Library.percentageOf(totalValueInWAVAX, redemptionPercentage);
+        require(wavaxAmountToRedeem > 0, "Cannot redeem 0 WAVAX.");
         authorizedRedemptions[msg.sender] = Redemption(amount, wavaxAmountToRedeem);
     }
 }

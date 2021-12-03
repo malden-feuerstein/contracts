@@ -50,7 +50,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - !InvestmentManager: It should have a switch on an asset where it's in watch-only mode: The price history can be collected from week to week but it can't buy bought
 - CashManager: Only liquidate when a cash asset is entirely removed? Getting a new asset up to desired % is only done through new investments.
 - What happens when a particular liquidation or purchase fails repeatedly? It would prevent it from moving to the next item. This could be solved by removing it from the list even if it fails. But would need to prevent a malicious user from always removing it from the list.
-- Important test: Run some tests on the redemptions stepping on the investment liquidations
+- Important test: Run some tests on the redemptions stepping on the investment liquidations. Start a redemption that queues some liquidations. Then start an investment buy that queues some liquidations.
 - Important test: Test a multi-token swap path. Currently I'm only testing token A->B paths, but what if it's A->B->C?
 - Important test: Test a situation where a liquidation or purchase is greater than a 1% priceImpact. Do this by making it a very large amount of WAVAX in the fund. Should be able to eventually achieve the desired outcomes by making one purchase per day
 - Add a test with $1000, which is what I will start with on main net

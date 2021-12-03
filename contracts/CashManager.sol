@@ -431,6 +431,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     // Take the amount of WAVAX needed and the current total WAVAX on hand
     // Authorize liquidations to get the total WAVAX on hand up amountNeeded
     // This must be callable when paused so that users can redeem their tokens
+    // Don't call this if there is already more WAVAX on hand than amountNeeded, it will cause an arithmetic error
     function prepareDryPowder(uint256 amountNeeded, uint256 wavaxOnHand) internal { // only be called by this contract
         // iterate the cash assets, authorizing liquidations until we have enough WAVAX
         // TODO: This iterates through the cashAssets randomly,
@@ -476,7 +477,9 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(maldenCoinAmount > 0, "Not authorized to liquidate for redemption.");
         require(wavaxAmount > 0, "Not authorized to liquidate for redemption.");
         uint256 wavaxOnHand = wavax.balanceOf(address(this));
-        prepareDryPowder(wavaxAmount, wavaxOnHand);
+        if (wavaxOnHand < wavaxAmount) { // Prepare additional dry powder only if needed
+            prepareDryPowder(wavaxAmount, wavaxOnHand);
+        }
         // Authorize the coin to take the WAVAX from this contract
         bool success = wavax.approve(address(coin), wavaxAmount); // let the Coin take the WAVAX to give to the user
         require(success, "wavax approval to the MALD coin failed.");
