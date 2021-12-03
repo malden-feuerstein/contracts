@@ -100,6 +100,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Never set class variables within loops, only local variables. Setting a `storage` variable in a loop incurs a costly SSTORE on every set
 - A lot of solidity security issues seem to revolve around being able to do things repeatedly in a loop. This characterizes both re-entrancy attacks and many of the . Introduce speed bumps to prevent this.
 - Remember to be very precise with your `>`, `<`, `<=`, `>=`, `==` comparisons. This caused [the Compound hack](https://twitter.com/Mudit__Gupta/status/1443454935639609345?s=20)
+- I attempted and will stay away from using an address router to centrally store addresses that are called by other contracts because the function calls consume a huge amount of 24kb size limit in the compiled contracts.
 
 ### Resources
 - Reduce contract size: https://soliditydeveloper.com/max-contract-size

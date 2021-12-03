@@ -86,10 +86,10 @@ async function coinFullRedeem(contracts, user) {
         await processAllLiquidations(contracts.cashManager, user);
         let userAVAXBalanceBefore = await contracts.coin.provider.getBalance(user.address);
         await contracts.coin.connect(user).approve(contracts.coin.address, fullTokenAmount);
-        let contractsValueBefore = (await contracts.cashManager.connect(user).totalValueInWAVAX()).add(
+        let contractsValueBefore = (await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).add(
             await contracts.investmentManager.connect(user).totalValueInWAVAX());
         await contracts.coin.connect(user).redeem();
-        let contractsValueAfter = (await contracts.cashManager.connect(user).totalValueInWAVAX()).add(
+        let contractsValueAfter = (await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).add(
             await contracts.investmentManager.connect(user).totalValueInWAVAX());
         let userAVAXBalanceAfter = await contracts.coin.provider.getBalance(user.address);
         totalAVAXInvestments = totalAVAXInvestments.sub(fullTokenAmount);
@@ -123,6 +123,7 @@ async function waitAWeek(contracts, user) {
 
 async function cashManagerUpdateCashPrices(contracts, user) {
     await contracts.cashManager.connect(user).updateCashPrices();
+    console.log("%s updated cash manager prices.", user.address);
 }
 
 async function cashManagerUpdateLiquidationsAndPurchases(contracts, user) {
@@ -158,6 +159,7 @@ async function investmentManagerSetAsset(contracts, user) {
     await contracts.investmentManager.connect(user).getLatestPrice(randomAsset); // third update
     await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 7]); // wait a week
     await contracts.investmentManager.connect(user).getLatestPrice(randomAsset); // fourth update
+    console.log("%s set investment asset %s", user.address, randomAsset);
 }
 
 async function cashManagerSetAssets(contracts, user) {
@@ -175,6 +177,7 @@ async function investmentManagerGetLatestPrice(contracts, user) {
     });
     let randomAsset = getRandomElement(addressesArray);
     await contracts.investmentManager.connect(user).getLatestPrice(randomAsset);
+    console.log("%s got latest investment manager price on %s", user.address, randomAsset);
 }
 
 async function investmentManagerBuy(contracts, user) {
@@ -185,6 +188,7 @@ async function investmentManagerBuy(contracts, user) {
     await contracts.investmentManager.connect(user).determineBuy(randomAsset);
     await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(randomAsset);
     await contracts.cashManager.connect(user).processInvestmentBuy(randomAsset);
+    console.log("%s made investment manager buy of %s", user.address, randomAsset);
 }
 
 async function investmentManagerDetermineBuy(contracts, user) {
@@ -209,6 +213,7 @@ async function cashManagerProcessInvestmentBuy(contracts, user) {
     });
     let randomAsset = getRandomElement(addressesArray);
     await contracts.cashManager.connect(user).processInvestmentBuy(randomAsset);
+    console.log("%s made investment manager buy of %s", user.address, randomAsset);
 }
 
 // Start test block
@@ -246,14 +251,14 @@ describe('Fuzz Testing', function () {
         await coin.connect(user).invest({"value": userInvestmentAmount});
         totalAVAXInvestments = totalAVAXInvestments.add(userInvestmentAmount);
         let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager, owner, user, userInvestmentAmount);
-        await makeCashManagerAllocations(contracts.cashManager, assets, allocations, user);
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
         // Make an investment
         expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.be.equal(0);
         await makeInvestment(contracts, owner, user);
         expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.be.not.equal(0);
         // Rebalance cash assets after investments
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
-        await makeCashManagerAllocations(contracts.cashManager, assets, allocations, user);
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
 
         // Randomly call functions
         let functionsToChooseFrom = [coinInvest, coinRedeem, coinRequestRedeem, coinFullRedeem, coinRandomRedeem, waitAWeek, waitADay,
@@ -290,7 +295,7 @@ describe('Fuzz Testing', function () {
         }
         console.log("Out of %s calls, %s succeeded.", numCalls, numSuccessfulCalls);
 
-        var cashManagerAVAXValue = await contracts.cashManager.connect(user).totalValueInWAVAX();
+        var cashManagerAVAXValue = await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX();
         var investmentManagerAVAXValue = await contracts.investmentManager.connect(user).totalValueInWAVAX();
         var sumAVAXValue = cashManagerAVAXValue.add(investmentManagerAVAXValue);
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",
@@ -330,11 +335,11 @@ describe('Fuzz Testing', function () {
 
         // Test that the cash manager is in a sane state
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
-        await makeCashManagerAllocations(contracts.cashManager, assets, allocations, user);
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
 
         // Any investments should roughly sum up to the WAVAX value of the cash manager + the WAVAX value of the investment manager
         // This ensures that no value was "lost"
-        cashManagerAVAXValue = await contracts.cashManager.connect(user).totalValueInWAVAX();
+        cashManagerAVAXValue = await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX();
         investmentManagerAVAXValue = await contracts.investmentManager.connect(user).totalValueInWAVAX();
         sumAVAXValue = cashManagerAVAXValue.add(investmentManagerAVAXValue);
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",

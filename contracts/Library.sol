@@ -6,6 +6,13 @@ import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeFactory.sol";
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoePair.sol";
 
 library Library {
+    struct PriceQuote {
+        uint256 price;
+        uint8 decimals;
+        address token0;
+        address token1;
+    }
+
     // Use this to get the decimals right any time you're multiplying an amount of a token by the price of token
     // This is typically for changing an amount of a token into its USD value
     // usdAmount = tokenAmount * price / decimals;

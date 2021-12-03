@@ -3,35 +3,29 @@ pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-//import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeFactory.sol";
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoePair.sol";
 import "hardhat/console.sol"; // TODO: Remove this for production
 
 // local
-import "contracts/IWAVAX.sol";
 import "contracts/IERC20.sol";
 import "contracts/Library.sol";
+import "contracts/ISwapRouter.sol";
 
 // Everything in this contract should be view or internal
 // TODO: I will not necessarily want only one router. What about Pangolin? What about other routers altogether?
 
-contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable {
-    struct PriceQuote {
-        uint256 price;
-        uint8 decimals;
-        address token0;
-        address token1;
-    }
-    IJoeFactory private joeFactory;
-    IJoeRouter02 public joeRouter; // TODO: this should probably be set on construction
+contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
+
+    IJoeFactory joeFactory;
 
     function initialize() external virtual initializer {
         __Ownable_init();
-        // FIXME: Make these upgradable
-        joeFactory = IJoeFactory(0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10);
-        joeRouter = IJoeRouter02(0x60aE616a2155Ee3d9A68541Ba4544862310933d4);
+        __UUPSUpgradeable_init();
+    }
+
+    function setAddresses(address joeFactoryAddress) external onlyOwner {
+        joeFactory = IJoeFactory(joeFactoryAddress);
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
@@ -56,12 +50,12 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable {
     }
 
     // This returns a price quote denominated in asset1, so it will have the decimals of asset1
-    function getPriceQuote(address asset0, address asset1) external view returns (PriceQuote memory) {
+    function getPriceQuote(address asset0, address asset1) external view returns (Library.PriceQuote memory) {
         (uint256 reserve0, uint256 reserve1) = getReserveAmounts(joeFactory, asset0, asset1);
         IERC20 token0 = IERC20(asset0);
         IERC20 token1 = IERC20(asset1);
         uint256 price = (reserve1 * (10 ** token0.decimals())) / reserve0;
-        return PriceQuote(price, token1.decimals(), address(token0), asset1);
+        return Library.PriceQuote(price, token1.decimals(), address(token0), asset1);
     }
 
     // Check if TraderJoe has sufficient liquidity

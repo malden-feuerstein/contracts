@@ -11,8 +11,11 @@ import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 
 // local
 import "contracts/IERC20.sol";
-import "contracts/SwapRouter.sol";
 import "contracts/Library.sol";
+import "contracts/IInvestmentManager.sol";
+import "contracts/ISwapRouter.sol";
+import "contracts/IWAVAX.sol";
+import "contracts/IValueHelpers.sol";
 import "contracts/ICashManager.sol";
 
 // Typical Usage to make an investment (buy):
@@ -27,31 +30,18 @@ import "contracts/ICashManager.sol";
 // Call determineSell() to determine if the criteria for selling an asset have been met
 // TODO: Call processSell() to perform determined sells and send the WAVAX to the CashManager
 
-contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable {
+contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable, IInvestmentManager {
     event DeterminedBuy(address, uint256, uint256); // address of asset to  buy, amount to buy, kelly fraction
-    struct InvestmentAsset {
-      address assetAddress;
-      uint256 intrinsicValue; // intrinsive value estimate in USDT
-      address[] liquidatePath;
-      address[] purchasePath;
-      uint256[] prices;
-      uint256[] priceTimestamps;
-      uint256 confidence; // probability of success in micro percentage points
-      uint256 sellAmount;
-      uint256 buyAmount; // Amount of WAVAX to swap for a purchase, slippage already taken into account
-      uint256 minimumReceived;
-      uint256 buyDeterminationTimestamp; // timestamp of when the buy amount was determined
-      bool exists;
-      bool reservedForBuy;
-    }
-    // contracts
-    SwapRouter private router;
-    IWAVAX private wavax;
-    IERC20 private usdt;
-    IJoeRouter02 private joeRouter; // TODO: this should probably be set on construction
-    IJoeFactory private joeFactory;
-    address private cashManagerAddress;
+
     bytes32 public constant CASH_MANAGER_ROLE = keccak256("CASH_MANAGER_ROLE");
+
+    // contracts
+    address wavaxAddress;
+    IWAVAX wavax;
+    IERC20 usdt;
+    ISwapRouter swapRouter;
+    IValueHelpers valueHelpers;
+    ICashManager cashManager;
 
     // constants
     // As of this writing average Avalanche C-Chain block time is 2 seconds
@@ -65,24 +55,18 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     uint256 private slippageTolerance;
 
     // investment storage
-    address[] public investmentAssets; // A list of the assets for potential investment
     mapping(address => InvestmentAsset) public investmentAssetsData; // mapping investmentAssets -> intrinsic value
+    address[] public investmentAssets; // A list of the assets for potential investment
     uint16 numBuysAuthorized;
 
-    function initialize(address swapRouterAddress) external virtual initializer {
+    function initialize() external virtual initializer {
         __Ownable_init();
         __UUPSUpgradeable_init();
         __AccessControl_init();
         __Pausable_init();
-        require(swapRouterAddress != address(0), "Cannot set the swap router to the null address.");
         newBlockEveryNMicroseconds = 2000;
         priceImpactTolerance = 1 * (10 ** 6); // This is one micro percent, or 1 percent with 6 decimals
-        wavax = IWAVAX(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
-        usdt = IERC20(0xc7198437980c041c805A1EDcbA50c1Ce5db95118);
-        minimumSwapValue = 50 * (10 ** usdt.decimals()); // Don't bother swapping less than $50
-        router = SwapRouter(swapRouterAddress);
-        joeRouter = IJoeRouter02(0x60aE616a2155Ee3d9A68541Ba4544862310933d4);
-        joeFactory = IJoeFactory(0x9Ad6C38BE94206cA50bb0d90783181662f0Cfa10);
+        minimumSwapValue = 50 * (10 ** 6); // Don't bother swapping less than $50
         priceUpdateInterval = 24 * 60 * 60 * 7; // one week
         numBuysAuthorized = 0;
         nWeeksOfScorn = 4;
@@ -91,6 +75,21 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner whenNotPaused {}
+
+    function setAddresses(address localWAVAXAddress,
+                          address swapRouterAddress,
+                          address valueHelpersAddress,
+                          address usdtAddress,
+                          address cashManagerAddress) external onlyOwner whenNotPaused {
+        require(localWAVAXAddress != address(0));
+        wavaxAddress = localWAVAXAddress;
+        wavax = IWAVAX(wavaxAddress);
+        usdt = IERC20(usdtAddress);
+        swapRouter = ISwapRouter(swapRouterAddress);
+        valueHelpers = IValueHelpers(valueHelpersAddress);
+        cashManager = ICashManager(cashManagerAddress);
+        _setupRole(CASH_MANAGER_ROLE, cashManagerAddress);
+    }
 
     function pause() external whenNotPaused onlyOwner {
         _pause();
@@ -105,12 +104,6 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         return investmentAssets.length;
     }
 
-    function setCashManagerAddress(address localCashManagerAddress) external onlyOwner whenNotPaused {
-        require(localCashManagerAddress != address(0), "Cannot set the cashManager to the null address.");
-        cashManagerAddress = localCashManagerAddress;
-        _setupRole(CASH_MANAGER_ROLE, cashManagerAddress);
-    }
-
     // Set the intrinsic value for a particular asset
     // If the asset is already in the list of tracked assets, update the intrinsic value
     // If the asset is not already in the list of tracked assets, add it to the list
@@ -121,9 +114,9 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
                                 address[] calldata liquidatePath,
                                 address[] calldata purchasePath) external onlyOwner whenNotPaused { // only owner can call this
         // All buys begin with WAVAX and all sells end with WAVAX
-        if (asset != address(wavax)) {
-            require(liquidatePath[liquidatePath.length - 1] == address(wavax));
-            require(purchasePath[0] == address(wavax));
+        if (asset != wavaxAddress) {
+            require(liquidatePath[liquidatePath.length - 1] == wavaxAddress);
+            require(purchasePath[0] == wavaxAddress);
         }
         require(confidence > 0, "Cannot have 0 confidence.");
         require(confidence <= 100 * (10 ** 6), "Cannot be more than 100% confident.");
@@ -169,7 +162,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
             require(latestPriceTimestamp <= block.timestamp - priceUpdateInterval, "Can update price at most once per week.");
         }
 
-        SwapRouter.PriceQuote memory price = router.getPriceQuote(asset, address(usdt));
+        Library.PriceQuote memory price = swapRouter.getPriceQuote(asset, address(usdt));
         investmentAssetsData[asset].prices.push(price.price);
         investmentAssetsData[asset].priceTimestamps.push(block.timestamp);
     }
@@ -180,7 +173,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     function determineSell(address asset) external whenNotPaused { // anyone can call this at any time
         require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
         // TODO: I don't want to assume that asset -> usdt exists directly, need to use liquidatePath
-        SwapRouter.PriceQuote memory currentPrice = router.getPriceQuote(asset, address(usdt));
+        Library.PriceQuote memory currentPrice = swapRouter.getPriceQuote(asset, address(usdt));
         // Sell when an asset is 50% above the intrinsicValue
         if (currentPrice.price > Library.addPercentage(investmentAssetsData[asset].intrinsicValue,
                                                  50 * (10 ** 6))) { // 50% more than intrinsicValue
@@ -203,10 +196,10 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         require(investmentAssetsData[asset].prices.length >= nWeeksOfScorn, "Must have a minimum number of price samples.");
         require(!investmentAssetsData[asset].reservedForBuy, "Cannot determine a buy on an asset currently reserved for buy.");
         // Total value of what the CashManager is holding, denominated in WAVAX
-        uint256 totalCashValue = ICashManager(cashManagerAddress).totalValueInWAVAX();
+        uint256 totalCashValue = valueHelpers.cashManagerTotalValueInWAVAX();
         //console.log("Got total cash value in WAVAX of %s", totalCashValue);
         // TODO: I don't want to assume that asset -> usdt path exists directly, need to use liquidate path
-        SwapRouter.PriceQuote memory currentPrice = router.getPriceQuote(asset, address(usdt));
+        Library.PriceQuote memory currentPrice = swapRouter.getPriceQuote(asset, address(usdt));
         //console.log("Asset current price: %s", currentPrice.price);
         // A buy is when an asset is at least 25% below its intrinsicValue
         if (currentPrice.price < Library.subtractPercentage(investmentAssetsData[asset].intrinsicValue, marginOfSafety)) {
@@ -226,9 +219,10 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
             // Now modify the betSize based on the AMM market conditions and slippage tolerances
             uint256 expectedReceived;
             uint256 minimumReceived;
-            if (asset != address(wavax)) {
-                require(investmentAssetsData[asset].purchasePath[0] == address(wavax), "Purchase paths must start with WAVAX.");
-                (betSize, expectedReceived) = router.findSwapAmountWithinTolerance(investmentAssetsData[asset].purchasePath,
+            if (asset != wavaxAddress) {
+                require(investmentAssetsData[asset].purchasePath[0] == wavaxAddress, "Purchase paths must start with WAVAX.");
+                (betSize, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(
+                                                                                        investmentAssetsData[asset].purchasePath,
                                                                                         betSize,
                                                                                         priceImpactTolerance);
                 minimumReceived = Library.subtractPercentage(expectedReceived, slippageTolerance);
@@ -276,14 +270,14 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     }
 
     // If there are no buys to perform, this authorizes the CashManager to take back any excess WAVAX
-    // TODO: Nothing is calling this - should it be here?
+    // TODO: This will need to be used when liquidations happen
     function drainExtraCash() external whenNotPaused { // anyone can call this
         // TODO: Prevent this from intefering with other calls by requiring a 1 hour wait after any call to
         // determineSell, determineBuy, or setInvestmentAsset
-        require(cashManagerAddress != address(0), "The cashManagerAddress has not been set yet.");
         if (numBuysAuthorized == 0) {
-            require(wavax.allowance(address(this), cashManagerAddress) == 0, "Must start from 0 allowance to set allowance.");
-            bool success = wavax.approve(cashManagerAddress, wavax.balanceOf(address(this)));
+            require(wavax.allowance(address(this), address(cashManager)) == 0,
+                    "Must start from 0 allowance to set allowance.");
+            bool success = wavax.approve(address(cashManager), wavax.balanceOf(address(this)));
             require(success, "Approving the CashManager to take WAVAX failed.");
         }
     }
@@ -296,14 +290,14 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         uint256 totalValue = 0;
         for (uint16 i = 0; i < investmentAssets.length; i++) {
             address asset = investmentAssets[i];
-            if (asset == address(wavax)) { // don't try to swap WAVAX to WAVAX
+            if (asset == wavaxAddress) { // don't try to swap WAVAX to WAVAX
                 uint256 wavaxBalance = wavax.balanceOf(address(this));
                 totalValue += wavaxBalance;
             } else {
                 IERC20 token = IERC20(asset);
                 uint256 tokenBalance = token.balanceOf(address(this));
                 // TODO: This assumes that asset -> wavax exists, but need to use the liquidatePath
-                SwapRouter.PriceQuote memory priceInWAVAX = router.getPriceQuote(asset, address(wavax));
+                Library.PriceQuote memory priceInWAVAX = swapRouter.getPriceQuote(asset, wavaxAddress);
                 uint256 valueInWAVAX = Library.priceMulAmount(tokenBalance, token.decimals(), priceInWAVAX.price);
                 totalValue += valueInWAVAX;
             }

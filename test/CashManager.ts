@@ -51,7 +51,7 @@ describe('Test CashManager', function () {
     });
 
     it ("Should not allow being initialized twice", async function() {
-        await expect(cashManager.initialize(contracts.swapRouter.address, contracts.investmentManager.address)).to.be.
+        await expect(cashManager.initialize()).to.be.
             revertedWith("Initializable: contract is already initialized");
     })
     // TODO: Add a test that upgrading a variable like
@@ -120,7 +120,7 @@ describe('Test CashManager', function () {
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await expect(cashManager.connect(user).updateLiquidationsAndPurchases()).to.be.revertedWith(
             "Asset is missing from the cashAssetsPrices.");
-        await makeCashManagerAllocations(cashManager, testAssets, testAllocations, user);
+        await makeCashManagerAllocations(contracts, testAssets, testAllocations, user);
         await testTokenAmountWithinBounds(addresses.wavax, user, cashManager.address, "10");
 
         testAssets = [addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];
@@ -238,14 +238,14 @@ describe('Test CashManager', function () {
         await processAllPurchases(cashManager, user);
         const finalWAVAXAmount = await wavax.connect(user).balanceOf(cashManager.address);
         await expect(finalWAVAXAmount).to.not.equal(0);
-        const finalWAVAXPercent = await cashManager.connect(user).assetPercentageOfPortfolio(wavax.address);
-        const finalDAIPercent = await cashManager.connect(user).assetPercentageOfPortfolio(dai.address);
-        const finalAMPLPercent = await cashManager.connect(user).assetPercentageOfPortfolio(addresses.ampl);
+        const finalWAVAXPercent = await contracts.valueHelpers.connect(user).assetPercentageOfCashManager(wavax.address);
+        const finalDAIPercent = await contracts.valueHelpers.connect(user).assetPercentageOfCashManager(dai.address);
+        const finalAMPLPercent = await contracts.valueHelpers.connect(user).assetPercentageOfCashManager(addresses.ampl);
         testBigNumberIsWithinInclusiveBounds(finalDAIPercent, ethers.BigNumber.from("9000000"), ethers.BigNumber.from("11000000"));
         testBigNumberIsWithinInclusiveBounds(finalWAVAXPercent, ethers.BigNumber.from("19000000"), ethers.BigNumber.from("21000000"));
         testBigNumberIsWithinInclusiveBounds(finalAMPLPercent, ethers.BigNumber.from("19000000"), ethers.BigNumber.from("21000000"));
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
-        await balanceCashHoldingsTest(cashManager, user, testAssets, testAllocations);
+        await balanceCashHoldingsTest(contracts, user, testAssets, testAllocations);
     })
 
 });

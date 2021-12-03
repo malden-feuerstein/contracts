@@ -42,7 +42,7 @@ describe('Test MaldenFeuersteinERC20', function () {
     });
 
     it ("Should not allow being initialized twice", async function() {
-        await expect(coin.initialize(contracts.cashManager.address, contracts.investmentManager.address)).to.be.
+        await expect(coin.initialize()).to.be.
             revertedWith("Initializable: contract is already initialized");
     })
 
@@ -108,14 +108,14 @@ describe('Test MaldenFeuersteinERC20', function () {
         let tokens = await getTokens();
         await coin.connect(user).invest({"value": userInvestmentAmount});
         let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager, owner, user, userInvestmentAmount);
-        await makeCashManagerAllocations(contracts.cashManager, assets, allocations, user);
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
         // Make an investment
         expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.be.equal(0);
         await makeInvestment(contracts, owner, user);
         expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.be.not.equal(0);
         // Rebalance cash assets after investments
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
-        await makeCashManagerAllocations(contracts.cashManager, assets, allocations, user);
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
 
         // Pause InvestmentManager
         expect(await contracts.investmentManager.connect(user).paused()).to.be.equal(false);

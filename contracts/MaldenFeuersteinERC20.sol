@@ -10,7 +10,12 @@ import "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeabl
 import "hardhat/console.sol"; // TODO: Remove this for production
 
 // local
-import "contracts/CashManager.sol";
+import "contracts/IWAVAX.sol";
+import "contracts/ICashManager.sol";
+import "contracts/IValueHelpers.sol";
+import "contracts/IInvestmentManager.sol";
+import "contracts/Library.sol";
+import "contracts/IMaldenFeuersteinERC20.sol";
 
 // Typical Redemption Usage:
 // user.approve() - approve the contract to take from the user the malden ERC20 tokens
@@ -19,12 +24,23 @@ import "contracts/CashManager.sol";
 // CashManager.processLiquidation() in a loop until liquidations are complete
 // redeem() to finally exchange the ERC20 token for the equivalent value in WAVAX
 
-contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+contract MaldenFeuersteinERC20 is ERC20Upgradeable,
+                                  ERC165Upgradeable,
+                                  OwnableUpgradeable,
+                                  UUPSUpgradeable,
+                                  PausableUpgradeable,
+                                  IMaldenFeuersteinERC20 {
     event Redeemed(uint256); // Emitted when a user successfully redeems, with the amount of redeemed
     struct Redemption {
         uint256 maldenCoinAmount;
         uint256 wavaxAmount;
     }
+
+    address wavaxAddress;
+    IWAVAX wavax;
+    ICashManager cashManager;
+    IValueHelpers valueHelpers;
+    IInvestmentManager investmentManager;
 
     string private constant TOKEN_NAME = "Malden Feuerstein";
     string private constant TOKEN_SYMBOL = "MALD";
@@ -36,11 +52,8 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
     mapping(address => uint256) private timestamps;
     mapping(address => uint256) private investmentBalances; // These are the balances of AVAX invested by investors
     mapping(address => Redemption) private authorizedRedemptions;
-    CashManager private cashManager;
-    InvestmentManager private investmentManager;
-    IWAVAX private wavax;
 
-    function initialize(address cashManagerAddress, address investmentManagerAddress) external virtual initializer {
+    function initialize() external virtual initializer {
         __Ownable_init();
         __UUPSUpgradeable_init();
         __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
@@ -49,15 +62,24 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
           // msg.sender
           // The ERC20 contract starts with all of the tokens
         _mint(address(this), TOTAL_SUPPLY);
-        cashManager = CashManager(cashManagerAddress);
-        wavax = IWAVAX(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
         stopped = false;
         investmentPeriodOver = false;
-        investmentManager = InvestmentManager(investmentManagerAddress);
         circulatingSupply = 0;
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    function setAddresses(address localWAVAXAddress,
+                          address cashManagerAddress,
+                          address valueHelpersAddress,
+                          address investmentManagerAddress) external onlyOwner whenNotPaused {
+        require(localWAVAXAddress != address(0));
+        wavaxAddress = localWAVAXAddress;
+        wavax = IWAVAX(localWAVAXAddress);
+        cashManager = ICashManager(cashManagerAddress);
+        valueHelpers = IValueHelpers(valueHelpersAddress);
+        investmentManager = IInvestmentManager(investmentManagerAddress);
+    }
   
     // This stops all activity: investments, allocations, and redemptions
     // This would be an emergency situation
@@ -161,7 +183,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable, ERC165Upgradeable, OwnableUp
             require((block.timestamp - timestamps[msg.sender]) >= 86400, "Must wait at least one day to redeem an investment.");
         }
         require(amount > 0, "Cannot redeem 0 tokens");
-        uint256 totalValueInWAVAX = cashManager.totalValueInWAVAX() + investmentManager.totalValueInWAVAX();
+        uint256 totalValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX() + investmentManager.totalValueInWAVAX();
         // What percent of the total number of ERC20 tokens is amount?
         uint256 redemptionPercentage = Library.valueIsWhatPercentOf(amount, circulatingSupply);
         uint256 wavaxAmountToRedeem = Library.percentageOf(totalValueInWAVAX, redemptionPercentage);

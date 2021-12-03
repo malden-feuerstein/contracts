@@ -71,9 +71,9 @@ describe('Test InvestmentManager', function () {
     });
 
     it ("Should not allow being initialized twice", async function() {
-        await expect(investmentManager.connect(owner).initialize(contracts.swapRouter.address)).to.be.
+        await expect(investmentManager.connect(owner).initialize()).to.be.
             revertedWith("Initializable: contract is already initialized");
-        await expect(investmentManager.connect(user).initialize(contracts.swapRouter.address)).to.be.
+        await expect(investmentManager.connect(user).initialize()).to.be.
             revertedWith("Initializable: contract is already initialized");
     })
 
@@ -296,7 +296,7 @@ describe('Test InvestmentManager', function () {
         await expect(await tokens.qi.connect(user).balanceOf(contracts.investmentManager.address)).to.not.equal(0);
         await expect(await tokens.wavax.connect(user).balanceOf(contracts.investmentManager.address)).to.equal(0);
         // re-balance the cash manager and check that the balances are right
-        await balanceCashHoldingsTest(contracts.cashManager, user, testAssets, testAllocations);
+        await balanceCashHoldingsTest(contracts, user, testAssets, testAllocations);
     })
 
 });
