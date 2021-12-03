@@ -180,8 +180,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                         uint256 amountToSwap;
                         uint256 expectedReceived;
                         (amountToSwap, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(path,
-                                                                                                              desiredAmountToSwap,
-                                                                                                              priceImpactTolerance);
+                                                                                                    desiredAmountToSwap,
+                                                                                                    priceImpactTolerance);
                         // If not fully liquidating it, then keep it in the asset list to process further liquidations
                         if (amountToSwap != desiredAmountToSwap) {
                             cashAssets.push(asset);
@@ -309,7 +309,9 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                 uint256 assetLiquidationAmount = tokenBalance - ((tokenBalance * ONE_HUNDRED_PERCENT * targetPercentage) /
                                                                    (currentPercentage * ONE_HUNDRED_PERCENT));
                 assetLiquidationAmounts[asset] = assetLiquidationAmount;
-                liquidationsToPerform.push(asset);
+                if (assetLiquidationAmount > 0) {
+                    liquidationsToPerform.push(asset);
+                }
             // Record the purchases to do
             } else if (targetUSDValue > Library.addPercentage(currentUSDValue, minimumAllocationDifference)) {
                 if ((targetUSDValue - currentUSDValue) < minimumSwapValue) { // Ignore swaps that are too small
@@ -349,11 +351,12 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
 
         address[] memory path = liquidatePaths[asset];
         uint256 desiredAmountToSwap = assetLiquidationAmounts[asset];
+        require(desiredAmountToSwap > 0, "Got a 0 desiredAmountToSwap.");
         uint256 amountToSwap;
         uint256 expectedReceived;
         (amountToSwap, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(path,
-                                                                                              desiredAmountToSwap,
-                                                                                              priceImpactTolerance);
+                                                                                    desiredAmountToSwap,
+                                                                                    priceImpactTolerance);
         IERC20 fromToken = IERC20(path[0]);
         require(fromToken.balanceOf(address(this)) >= amountToSwap, "Cannot approve swapping more than on hand.");
         bool success = fromToken.approve(address(joeRouter), amountToSwap);
@@ -362,10 +365,10 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         // Do the swap
         uint256 minimumReceived = Library.subtractPercentage(expectedReceived, slippageTolerance);
         uint256[] memory amounts = joeRouter.swapExactTokensForTokens(amountToSwap,
-                                                                                minimumReceived,
-                                                                                path,
-                                                                                address(this),
-                                                                                block.timestamp);
+                                                                      minimumReceived,
+                                                                      path,
+                                                                      address(this),
+                                                                      block.timestamp);
         require(amounts[0] == amountToSwap, "Didn't sell the amount of tokens inserted.");
         require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected.");
     }
@@ -451,13 +454,17 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                 assert(percentLiquidationNeeded < (100 * (10 ** 6)));
                 uint256 amountToLiquidate = Library.percentageOf(liquidateTokenOnHand, percentLiquidationNeeded);
                 assetLiquidationAmounts[liquidateAsset] = amountToLiquidate;
-                wavaxOnHand += differenceNeeded;
-                liquidationsToPerform.push(liquidateAsset);
+                if (amountToLiquidate > 0) {
+                    liquidationsToPerform.push(liquidateAsset);
+                    wavaxOnHand += differenceNeeded;
+                }
                 break; // This one is enough, don't need to continue iterating
             } else { // it's not enough, so add all of it and go to the next
                 assetLiquidationAmounts[liquidateAsset] = liquidateTokenOnHand;
-                liquidationsToPerform.push(liquidateAsset);
-                wavaxOnHand += liquidateTokenValueInWAVAX;
+                if (liquidateTokenOnHand > 0) {
+                    liquidationsToPerform.push(liquidateAsset);
+                    wavaxOnHand += liquidateTokenValueInWAVAX;
+                }
             }
         }
     }

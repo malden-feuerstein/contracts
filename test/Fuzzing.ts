@@ -65,6 +65,7 @@ async function coinRandomRedeem(contracts, user) {
 // This attempts to get out all of a user's funds, and it attempts to always succeed
 async function coinFullRedeem(contracts, user) {
     let fullTokenAmount = await contracts.coin.balanceOf(user.address);
+    let expectedEndingTokenAmount = BigNumber.from("0");
     await network.provider.send("evm_increaseTime", [86401]); // Make sure it's been a day since the investment took place
     if (fullTokenAmount > 0) {
         //console.log("coinFullRedeem called...");
@@ -80,6 +81,7 @@ async function coinFullRedeem(contracts, user) {
             expect(maldenCoinAmount).to.be.equal(BigNumber.from("0"));
             await contracts.coin.connect(user).requestRedeem(fullTokenAmount);
         } else {
+            expectedEndingTokenAmount = fullTokenAmount.sub(maldenCoinAmount);
             fullTokenAmount = maldenCoinAmount;
         }
         await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
@@ -93,7 +95,7 @@ async function coinFullRedeem(contracts, user) {
             await contracts.investmentManager.connect(user).totalValueInWAVAX());
         let userAVAXBalanceAfter = await contracts.coin.provider.getBalance(user.address);
         totalAVAXInvestments = totalAVAXInvestments.sub(fullTokenAmount);
-        expect(await contracts.coin.balanceOf(user.address)).to.be.equal(0);
+        expect(await contracts.coin.balanceOf(user.address)).to.be.equal(expectedEndingTokenAmount);
         expect(userAVAXBalanceAfter).to.be.gt(userAVAXBalanceBefore);
         expect(contractsValueBefore).to.be.gt(contractsValueAfter);
         console.log("%s redeemed %s.", user.address, fullTokenAmount.toString());
