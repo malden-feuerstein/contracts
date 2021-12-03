@@ -218,12 +218,11 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         }
         cashAssetsPrices[address(wavax)] = wavaxInUSDTQuote.price;
 
-        uint8 unit_of_denomination_decimals = usdt.decimals();
         uint8 wavax_decimals = wavax.decimals();
         for (uint32 i = 0; i < cashAssets.length; i++) {
             address asset = cashAssets[i];
             if (asset == address(usdt)) {
-                cashAssetsPrices[asset] = 10 ** unit_of_denomination_decimals; // USDT:USDT is 1:1 definitionally
+                cashAssetsPrices[asset] = 10 ** usdt.decimals(); // USDT:USDT is 1:1 definitionally
             } else if (asset != address(wavax)) { // WAVAX price was already updated
                 // First convert to WAVAX, then convert to USDT
                 Library.PriceQuote memory quoteInWAVAX = swapRouter.getPriceQuote(asset, address(wavax));
@@ -404,8 +403,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         uint256 amountToSwap;
         uint256 expectedReceived;
         (amountToSwap, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(path,
-                                                                                              desiredAmountToSwap,
-                                                                                              priceImpactTolerance);
+                                                                                    desiredAmountToSwap,
+                                                                                    priceImpactTolerance);
         require(amountToSwap <= (wavax.balanceOf(address(this)) - investmentReservedWAVAXAmount),
                "This cash asset purchase would require using WAVAX that is reserved for an investment purchase.");
         bool success = fromToken.approve(address(joeRouter), amountToSwap);

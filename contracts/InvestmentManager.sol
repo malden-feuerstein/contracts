@@ -127,10 +127,6 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
             investmentAssetsData[asset].liquidatePath = liquidatePath;
             investmentAssetsData[asset].purchasePath = purchasePath;
         } else { // Not there already, add it
-            // Rough test that it's an ERC20 token
-            IERC20 token = IERC20(asset);
-            uint256 tokenBalance = token.balanceOf(address(this));
-            require(tokenBalance >= 0);
             uint256[] memory emptyArray;
             InvestmentAsset memory newAsset = InvestmentAsset(asset,
                                                               intrinsicValue,

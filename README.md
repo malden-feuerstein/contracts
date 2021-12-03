@@ -63,6 +63,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Test: Someone externally sending to the contract one of the cash or investment assets, thereby throwing the percentages off balance.
 - Test: Someone sends AVAX to MaldenFeuersteinERC20. It should be sent to the CashManager on the next call to invest()
 - When the kelly bet is larger than the total cash on hand, liquidate all cash assets to WAVAX and use all WAVAX to buy
+- Find a way to test same-block transactions in the Fuzzing tests using [this](https://hardhat.org/hardhat-network/explanation/mining-modes.html).
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called

@@ -27,6 +27,7 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function setAddresses(address localWAVAXAddress, address cashManagerAddress, address swapRouterAddress) external onlyOwner {
+        require(localWAVAXAddress != address(0), "Cannot set WAVAX address to 0");
         wavaxAddress = localWAVAXAddress;
         wavax = IWAVAX(localWAVAXAddress);
         cashManager = ICashManager(cashManagerAddress);

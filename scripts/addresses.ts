@@ -15,6 +15,8 @@ export const addresses = {
     ampl: "0x027dbcA046ca156De9622cD1e2D907d375e53aa7",
     joe: "0x6e84a6216ea6dacc71ee8e6b0a5b7322eebc0fdd",
     qi: "0x8729438eb15e2c8b576fcc6aecda6a148776c0f5",
+    link: "0x5947bb275c521040051d82396192181b413227a3",
+    png: "0x60781c2586d68229fde47564546784ab3faca982",
 }
 
 export async function getTokens() {
@@ -28,6 +30,8 @@ export async function getTokens() {
         ampl: await ethers.getContractAt("IERC20", addresses.ampl),
         joe: await ethers.getContractAt("IERC20", addresses.joe),
         qi: await ethers.getContractAt("IERC20", addresses.qi),
+        link: await ethers.getContractAt("IERC20", addresses.link),
+        png: await ethers.getContractAt("IERC20", addresses.png),
     }
 }
 
@@ -41,6 +45,8 @@ export const liquidatePaths = {
     ampl: [addresses.ampl, addresses.wavax],
     joe: [addresses.joe, addresses.wavax],
     qi: [addresses.qi, addresses.wavax],
+    link: [addresses.link, addresses.wavax],
+    png: [addresses.png, addresses.wavax],
 }
 
 export const purchasePaths = {
@@ -52,5 +58,7 @@ export const purchasePaths = {
     usdc: [addresses.wavax, addresses.usdc],
     ampl: [addresses.wavax, addresses.ampl],
     joe: [addresses.wavax, addresses.joe],
-    qi: [addresses.wavax, addresses.qi]
+    qi: [addresses.wavax, addresses.qi],
+    link: [addresses.wavax, addresses.link],
+    png: [addresses.wavax, addresses.png],
 }

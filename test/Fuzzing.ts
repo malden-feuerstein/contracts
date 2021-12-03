@@ -59,7 +59,7 @@ async function coinRandomRedeem(contracts, user) {
     await contracts.coin.connect(user).approve(contracts.coin.address, randomAmount);
     await contracts.coin.connect(user).redeem();
     totalAVAXInvestments = totalAVAXInvestments.sub(randomAmount);
-    console.log("%s redeemed %s.", user.address, randomAmount.toString());
+    console.log("%s redeemed %s", user.address, randomAmount.toString());
 }
 
 // This attempts to get out all of a user's funds, and it attempts to always succeed
@@ -98,7 +98,7 @@ async function coinFullRedeem(contracts, user) {
         expect(await contracts.coin.balanceOf(user.address)).to.be.equal(expectedEndingTokenAmount);
         expect(userAVAXBalanceAfter).to.be.gt(userAVAXBalanceBefore);
         expect(contractsValueBefore).to.be.gt(contractsValueAfter);
-        console.log("%s redeemed %s.", user.address, fullTokenAmount.toString());
+        console.log("%s redeemed %s", user.address, fullTokenAmount.toString());
     }
 }
 
@@ -149,6 +149,10 @@ async function investmentManagerSetAsset(contracts, user) {
     //console.log("randomPriceTarget = %s", randomPriceTarget);
     let randomConfidence = BigNumber.from(String(randomIntFromInterval(0, 100) * (10 ** 6)));
     //console.log("randomConfidence = %s", randomConfidence);
+    console.log("investmentManagerSetAsset:");
+    console.log(randomAsset);
+    console.log(liquidatePathsArray[randomIndex]);
+    console.log(purchasePathsArray[randomIndex]);
     await contracts.investmentManager.connect(user).setInvestmentAsset(randomAsset,
                                                                        randomPriceTarget,
                                                                        randomConfidence,
@@ -168,6 +172,18 @@ async function cashManagerSetAssets(contracts, user) {
     // TODO
 }
 
+// Send MALD tokens from one user to another
+async function sendMALD(contracts, user) {
+    let userMALDAmount = await contracts.coin.connect(user).balanceOf(user.address);
+    if (userMALDAmount.gt(BigNumber.from("0"))) {
+        let randomDivisor = randomIntFromInterval(1, 10);
+        let sendAmount = userMALDAmount.div(BigNumber.from(randomDivisor));
+        let recepientUser = getRandomElement(await ethers.getSigners());
+        await contracts.coin.connect(user).transfer(recepientUser.address, sendAmount);
+        console.log("sendMALD %s sent %s MALD to %s", user.address, sendAmount, recepientUser.address);
+    }
+}
+
 async function testMakeCashManagerAllocations(contracts, user) {
     // TODO: How do I know what the assets and the allocations are?
     //await makeCashManagerAllocations(contracts.cashManager, assets, allocations, user);
@@ -183,10 +199,12 @@ async function investmentManagerGetLatestPrice(contracts, user) {
 }
 
 async function investmentManagerBuy(contracts, user) {
+    console.log("investmentManagerBuy...");
     let addressesArray = Object.keys(addresses).map(function(key){
         return addresses[key];
     });
     let randomAsset = getRandomElement(addressesArray);
+    console.log(randomAsset);
     await contracts.investmentManager.connect(user).determineBuy(randomAsset);
     await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(randomAsset);
     await contracts.cashManager.connect(user).processInvestmentBuy(randomAsset);
@@ -194,10 +212,12 @@ async function investmentManagerBuy(contracts, user) {
 }
 
 async function investmentManagerDetermineBuy(contracts, user) {
+    console.log("investmentManagerDetermineBuy...");
     let addressesArray = Object.keys(addresses).map(function(key){
         return addresses[key];
     });
     let randomAsset = getRandomElement(addressesArray);
+    console.log(randomAsset);
     await contracts.investmentManager.connect(user).determineBuy(randomAsset);
 }
 
@@ -267,7 +287,8 @@ describe('Fuzz Testing', function () {
                                      cashManagerUpdateLiquidationsAndPurchases, cashManagerUpdateCashPrices,
                                      investmentManagerGetLatestPrice, investmentManagerBuy, investmentManagerDetermineBuy,
                                      cashManagerPrepareDryPowderForInvestmentBuy, cashManagerProcessPurchase,
-                                     cashManagerProcessLiquidation, cashManagerProcessInvestmentBuy, investmentManagerSetAsset];
+                                     cashManagerProcessLiquidation, cashManagerProcessInvestmentBuy, investmentManagerSetAsset,
+                                     sendMALD];
         // I want it to sometimes execute a small number of calls because this tends to produce outcomes with small AVAX amounts,
         // I want coverage of both large and small AVAX amounts
         const numCalls = randomIntFromInterval(20, 300); // Increase this to increase the number of fuzz calls per test
@@ -286,8 +307,8 @@ describe('Fuzz Testing', function () {
                 await randomFunction(contracts, randomUser);
             } catch (e) {
                 numSuccessfulCalls -= 1;
-                if (randomFunction.name == coinFullRedeem.name) {
-                    console.log("coinFullRedeem failed with: %s", e);
+                if (randomFunction.name == coinFullRedeem.name, randomFunction.name == sendMALD.name) {
+                    console.log("%s failed with: %s", randomFunction.name, e);
                 } else if (!e.message.includes("reverted")) {
                     console.log("Calling %s threw: %s", randomFunction.name, e);
                 } else if (e.message.includes("underflow") || e.message.includes("overflow")) {

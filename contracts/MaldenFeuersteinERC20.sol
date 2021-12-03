@@ -180,6 +180,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         if (investmentBalances[msg.sender] > 0) {
             // require vs assert: https://ethereum.stackexchange.com/questions/15166/difference-between-require-and-assert-and-the-difference-between-revert-and-thro
             assert(block.timestamp > timestamps[msg.sender]);
+            // speed bump
             require((block.timestamp - timestamps[msg.sender]) >= 86400, "Must wait at least one day to redeem an investment.");
         }
         require(amount > 0, "Cannot redeem 0 tokens");
