@@ -244,8 +244,6 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     // past minute
     function updateLiquidationsAndPurchases() external whenNotPaused { // anyone can call this
         // Limit how often this is called
-        // TODO Make this time limit a parameter that can be set. Once per day could be too much. People spamming this
-        // would be a nuisance on transaction costs
         require(block.timestamp > lastCashBalanceUpdateTimestamp + 86400, "Can update cash balances only once per day.");
         // Speed bump: https://samczsun.com/so-you-want-to-use-a-price-oracle/
         require(block.number > lastCashAssetsPricesUpdateBlockNumber, "Cannot update prices and balances in the same block.");
