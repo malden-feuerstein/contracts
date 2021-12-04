@@ -477,7 +477,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     function prepareDryPowderForRedemption() external {
         uint256 maldenCoinAmount;
         uint256 wavaxAmount;
-        (maldenCoinAmount, wavaxAmount) = coin.getAuthorizedRedemptionAmounts(msg.sender);
+        (maldenCoinAmount, wavaxAmount, ) = coin.getAuthorizedRedemptionAmounts(msg.sender);
         require(maldenCoinAmount > 0, "Not authorized to liquidate for redemption.");
         require(wavaxAmount > 0, "Not authorized to liquidate for redemption.");
         uint256 wavaxOnHand = wavax.balanceOf(address(this));

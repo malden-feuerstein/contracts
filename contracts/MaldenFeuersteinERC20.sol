@@ -21,6 +21,8 @@ import "contracts/interfaces/IMaldenFeuersteinERC20.sol";
 // requestRedeem()
 // CashManager.prepareDryPowderForRedemption()
 // CashManager.processLiquidation() in a loop until liquidations are complete
+// TODO: InvestmentManager.prepareDryPowderForRedemption()
+// TODO: InvestmentManager.processLiquidation() in a loop until liquidations are complete
 // approve() - the user approves the contract to take from the user the malden ERC20 tokens
 // redeem() to finally exchange the ERC20 token for the equivalent value in WAVAX
 
@@ -33,7 +35,8 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
     event Redeemed(uint256); // Emitted when a user successfully redeems, with the amount of redeemed
     struct Redemption {
         uint256 maldenCoinAmount;
-        uint256 wavaxAmount;
+        uint256 cashManagerWAVAXAmount;
+        uint256 investmentManagerWAVAXAmount;
     }
 
     address wavaxAddress;
@@ -44,7 +47,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
 
     string private constant TOKEN_NAME = "Malden Feuerstein";
     string private constant TOKEN_SYMBOL = "MALD";
-    uint256 private constant TOTAL_SUPPLY = 1e5 ether; // TODO: How many shares did Berkshire Hathaway have originally?
+    uint256 private constant TOTAL_SUPPLY = 1e5 ether;
     uint256 public circulatingSupply;
     bool private stopped; // emergency stop everything
     bool private investmentPeriodOver; // Set to true once the initial investment period is over
@@ -143,29 +146,38 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
     function redeem() external {
         require(!stopped, "Can not redeem during emergency stop.");
         uint256 maldenCoinAmount = authorizedRedemptions[msg.sender].maldenCoinAmount;
-        uint256 wavaxAmount = authorizedRedemptions[msg.sender].wavaxAmount;
+        uint256 cashManagerWAVAXAmount = authorizedRedemptions[msg.sender].cashManagerWAVAXAmount;
+        uint256 investmentManagerWAVAXAmount = authorizedRedemptions[msg.sender].investmentManagerWAVAXAmount;
         require(maldenCoinAmount > 0, "Not authorized to redeem anything.");
-        require(wavaxAmount > 0, "Not authorized to redeem anything.");
+        require(cashManagerWAVAXAmount + investmentManagerWAVAXAmount > 0, "Not authorized to redeem anything.");
         authorizedRedemptions[msg.sender].maldenCoinAmount = 0; // no longer authorized
-        authorizedRedemptions[msg.sender].wavaxAmount = 0;
+        authorizedRedemptions[msg.sender].cashManagerWAVAXAmount = 0;
+        authorizedRedemptions[msg.sender].investmentManagerWAVAXAmount = 0;
         circulatingSupply -= maldenCoinAmount;
         require(circulatingSupply <= TOTAL_SUPPLY, "Cannot have more MALD tokens than TOTAL_SUPPLY");
         // take the tokens from the person
-        require(wavax.balanceOf(address(cashManager)) >= wavaxAmount,
+        require(wavax.balanceOf(address(cashManager)) >= cashManagerWAVAXAmount,
                 "CashManager doesn't have enough WAVAX to fill this redemption.");
-        emit Redeemed(wavaxAmount);
+        require(wavax.balanceOf(address(investmentManager)) >= investmentManagerWAVAXAmount,
+               "InvestmentManager doesn't have enough WAVAX to fill this redemption.");
+        uint256 wavaxTotal = cashManagerWAVAXAmount + investmentManagerWAVAXAmount;
+        emit Redeemed(wavaxTotal);
         bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);
         require(success, "transferFrom failed.");
-        success = wavax.transferFrom(address(cashManager), address(this), wavaxAmount);
+        success = wavax.transferFrom(address(cashManager), address(this), cashManagerWAVAXAmount);
+        require(success, "transferFrom failed.");
+        success = wavax.transferFrom(address(investmentManager), address(this), investmentManagerWAVAXAmount);
         require(success, "transferFrom failed.");
         // convert it from WAVAX to AVAX
-        wavax.withdraw(wavaxAmount);
+        wavax.withdraw(wavaxTotal);
         // send it to the user
-        payable(msg.sender).transfer(wavaxAmount);
+        payable(msg.sender).transfer(wavaxTotal);
     }
 
-    function getAuthorizedRedemptionAmounts(address user) external view returns (uint256, uint256) { // anyone can call this
-        return (authorizedRedemptions[user].maldenCoinAmount, authorizedRedemptions[user].wavaxAmount);
+    function getAuthorizedRedemptionAmounts(address user) external view returns (uint256, uint256, uint256) { // anyone can call this
+        return (authorizedRedemptions[user].maldenCoinAmount,
+                authorizedRedemptions[user].cashManagerWAVAXAmount,
+                authorizedRedemptions[user].investmentManagerWAVAXAmount);
     }
   
     // Redeems the tokens in this contract for the equivalent value of underlying assets
@@ -173,7 +185,8 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
     function requestRedeem(uint256 amount) external { // Anyone can call this
         require(!stopped, "Can not redeem during emergency stop.");
         require(amount <= balanceOf(msg.sender), "Must own at least as many tokens as attempting to redeem.");
-        require(authorizedRedemptions[msg.sender].wavaxAmount == 0, "Redemption already in progress.");
+        require(authorizedRedemptions[msg.sender].cashManagerWAVAXAmount == 0, "Redemption already in progress.");
+        require(authorizedRedemptions[msg.sender].investmentManagerWAVAXAmount == 0, "Redemption already in progress.");
         require(authorizedRedemptions[msg.sender].maldenCoinAmount == 0, "Redemption already in progress.");
         // Should not be able to invest() and redeem() in the same transaction, but non-investors can redeem even during the
         // investment period
@@ -185,11 +198,18 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
             require((block.timestamp - timestamps[msg.sender]) >= 86400, "Must wait at least one day to redeem an investment.");
         }
         require(amount > 0, "Cannot redeem 0 tokens");
-        uint256 totalValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX() + valueHelpers.investmentManagerTotalValueInWAVAX();
+        uint256 cashManagerValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX();
+        uint256 totalValueInWAVAX = cashManagerValueInWAVAX + valueHelpers.investmentManagerTotalValueInWAVAX();
         // What percent of the total number of ERC20 tokens is amount?
         uint256 redemptionPercentage = Library.valueIsWhatPercentOf(amount, circulatingSupply);
         uint256 wavaxAmountToRedeem = Library.percentageOf(totalValueInWAVAX, redemptionPercentage);
         require(wavaxAmountToRedeem > 0, "Cannot redeem 0 WAVAX.");
-        authorizedRedemptions[msg.sender] = Redemption(amount, wavaxAmountToRedeem);
+        if (wavaxAmountToRedeem > cashManagerValueInWAVAX) { // Need to do InvestmentManager liquidations too
+            authorizedRedemptions[msg.sender] = Redemption(amount,
+                                                           cashManagerValueInWAVAX,
+                                                           wavaxAmountToRedeem - cashManagerValueInWAVAX);
+        } else {
+            authorizedRedemptions[msg.sender] = Redemption(amount, wavaxAmountToRedeem, 0);
+        }
     }
 }
