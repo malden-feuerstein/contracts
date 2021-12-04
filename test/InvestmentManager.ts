@@ -155,7 +155,9 @@ describe('Test InvestmentManager', function () {
 
         // First reserve the WAVAX for the purchase
         await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.wavax);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.gt(0);
         await contracts.investmentManager.connect(user).processBuy(addresses.wavax);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.equal(0);
         expect(await wavax.connect(user).balanceOf(investmentManager.address)).to.equal(authorizedBuyAmount);
     })
 
@@ -186,7 +188,9 @@ describe('Test InvestmentManager', function () {
         await processAllLiquidations(contracts.cashManager, user);
         const endingWAVAXAmount = await wavax.connect(user).balanceOf(contracts.cashManager.address);
         await expect(endingWAVAXAmount).to.be.gte(authorizedBuyAmount);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.gt(0);
         await contracts.investmentManager.connect(user).processBuy(addresses.wavax);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.equal(0);
         expect(await wavax.connect(user).balanceOf(investmentManager.address)).to.equal(authorizedBuyAmount);
     })
 
@@ -223,7 +227,9 @@ describe('Test InvestmentManager', function () {
         const endingWAVAXAmount = await wavax.connect(user).balanceOf(contracts.cashManager.address);
         await expect(endingWAVAXAmount).to.be.gte(authorizedBuyAmount);
         await expect(await tokens.joe.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.gt(0);
         await contracts.investmentManager.connect(user).processBuy(addresses.joe);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.equal(0);
         await expect(await tokens.joe.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
         await expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.not.equal(0);
         await expect(await tokens.wavax.connect(user).balanceOf(contracts.investmentManager.address)).to.equal(0);
@@ -291,7 +297,9 @@ describe('Test InvestmentManager', function () {
         const endingWAVAXAmount = await wavax.connect(user).balanceOf(contracts.cashManager.address);
         await expect(endingWAVAXAmount).to.be.gte(authorizedBuyAmount);
         await expect(await tokens.qi.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.gt(0);
         await contracts.investmentManager.connect(user).processBuy(addresses.qi);
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.equal(0);
         await expect(await tokens.qi.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
         await expect(await tokens.qi.connect(user).balanceOf(contracts.investmentManager.address)).to.not.equal(0);
         await expect(await tokens.wavax.connect(user).balanceOf(contracts.investmentManager.address)).to.equal(0);

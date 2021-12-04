@@ -56,7 +56,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     address[] purchasesToPerform;
     // Amount of WAVAX reserved for making investment purchases. This amount of WAVAX cannot be used to purchase
     // other cash holdings
-    uint256 private investmentReservedWAVAXAmount;
+    uint256 public investmentReservedWAVAXAmount;
 
     // contracts
     address wavaxAddress;
