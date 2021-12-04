@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 //import "hardhat/console.sol"; // TODO: Remove this for production
@@ -28,7 +29,7 @@ import "contracts/IValueHelpers.sol";
 // 4) After all liquidations are completed, anyone calls processPurchase() repeatedly until all queued purchases are processed.
 // 5) If any of the liquidations or purchases were completed only partially because the orders were too big given the price impact requirements, steps 1-4 can be repeated on the following day to move closer to the desired cash allocations.
 
-contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, PausableUpgradeable {
+contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, PausableUpgradeable, AccessControlUpgradeable {
     event AddedCashAsset(address);
     event RemovedCashAsset(address);
     event IncreasedCashAsset(address);
@@ -66,6 +67,9 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     IValueHelpers valueHelpers;
     IInvestmentManager investmentManager;
     IERC20 usdt;
+    
+    // roles
+    bytes32 public constant INVESTMENT_MANAGER_ROLE = keccak256("INVESTMENT_MANAGER_ROLE");
 
     // constants
     // As of this writing average Avalanche C-Chain block time is 2 seconds
@@ -82,6 +86,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         __Ownable_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
+        __AccessControl_init();
         lastCashBalanceUpdateTimestamp = 0;
         lastCashAssetsPricesUpdateBlockNumber = 0;
         newBlockEveryNMicroseconds = 2000;
@@ -110,6 +115,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         coin = IMaldenFeuersteinERC20(coinAddress);
         valueHelpers = IValueHelpers(valueHelpersAddress);
         investmentManager = IInvestmentManager(investmentManagerAddress);
+        _setupRole(INVESTMENT_MANAGER_ROLE, investmentManagerAddress);
         usdt = IERC20(usdtAddress);
     }
 
@@ -484,7 +490,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(success, "wavax approval to the MALD coin failed.");
     }
 
-    // Call this before processInvestmentBuy to reserve
+    // Call this before InvestmentManager.processBuy to prepare liquidations to have enough WAVAX to make an investment
     function prepareDryPowderForInvestmentBuy(address asset) external whenNotPaused { // anyone can call this
         bool exists;
         uint256 buyAmount;
@@ -514,63 +520,14 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
             assert(liquidationsToPerform.length == 0);
             prepareDryPowder(buyAmount, wavaxOnHand);
         }
+        wavax.approve(address(investmentManager), buyAmount);
         investmentManager.reserveForCashManagerPurchase(asset, buyAmount);
     }
 
-    // Uses cash on hand to make a purchase of a particular asset
-    function processInvestmentBuy(address asset) external whenNotPaused { // anyone can call this
-        bool exists;
-        uint256 buyAmount;
-        uint256 buyDeterminationTimestamp;
-        bool reservedForBuy;
-        uint256 minimumReceived;
-        (, , , ,
-         buyAmount,
-         minimumReceived,
-         buyDeterminationTimestamp,
-         exists,
-         reservedForBuy) = investmentManager.investmentAssetsData(asset);
-        require(exists, "This asset isn't in the investment manager.");
-        require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
-        require(reservedForBuy, "asset must be reserved for this purchase.");
-        //require(block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)); // A buy determination made over a day ago is invalid
-        require(minimumReceived > 0, "Must have a minimum received to enforce.");
-        // TODO: This constraint could cause issues if the total cash value in WAVAX changed from the time the InvestmentManager was
-        // called to the time this is called
-        require(investmentReservedWAVAXAmount >= buyAmount, "Must have WAVAX reserved for the investment buy.");
+    function clearInvestmentReservation(uint256 buyAmount) external whenNotPaused {
+        require(hasRole(INVESTMENT_MANAGER_ROLE, msg.sender), "Caller is not an InvestmentManager.");
+        require(investmentReservedWAVAXAmount >= buyAmount, "Cannot clear more than currently reserved.");
         investmentReservedWAVAXAmount -= buyAmount;
-        investmentManager.clearBuy(asset, buyAmount);
-        if (block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)) { // actually process it only if it's not stale
-            //require(wavax.balanceOf(address(this)) >= buyAmount, "Don't have sufficient WAVAX for this buyAmount.");
-            // It's possible that liquidaitons to produce WAVAX dry powder didn't convert as much as desired due to
-            // slippage constraints. In that situation, complete the buy as much as possible.
-            uint256 wavaxOnHand = wavax.balanceOf(address(this));
-            // TODO: The  minimum here should actually be above 0, it should be some multiple of transation cost
-            // It doesn't make sense to do a swap when the amount being swapped is less than gas cost
-            if (buyAmount > wavaxOnHand) {
-                uint256 percentageOfTargetWAVAX = Library.valueIsWhatPercentOf(wavaxOnHand, buyAmount);
-                buyAmount = Math.min(buyAmount, wavaxOnHand);
-                minimumReceived = Library.percentageOf(minimumReceived, percentageOfTargetWAVAX);
-            }
-            if (buyAmount > 0) { // Do nothing if there is no WAVAX on hand for this investment
-                if (asset == address(wavax)) { // just send it to the investment manager
-                    bool success = wavax.transfer(address(investmentManager), buyAmount);
-                    require(success, "WAVAX transfer failed.");
-                } else { // swap and send to the InvestmentManager
-                    bool success = wavax.approve(address(joeRouter), buyAmount);
-                    require(success, "token approval failed.");
-
-                    // Do the swap
-                    address[] memory path = investmentManager.getBuyPath(asset);
-                    uint256[] memory amounts = joeRouter.swapExactTokensForTokens(buyAmount,
-                                                                                  minimumReceived, // Define a minimum received
-                                                                                  path,
-                                                                                  address(investmentManager),
-                                                                                  block.timestamp);
-                    require(amounts[0] == buyAmount, "Didn't sell the amount of tokens inserted.");
-                    require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected.");
-                }
-            }
-        }
     }
+
 }

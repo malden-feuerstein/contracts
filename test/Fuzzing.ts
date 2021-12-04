@@ -207,7 +207,7 @@ async function investmentManagerBuy(contracts, user) {
     console.log(randomAsset);
     await contracts.investmentManager.connect(user).determineBuy(randomAsset);
     await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(randomAsset);
-    await contracts.cashManager.connect(user).processInvestmentBuy(randomAsset);
+    await contracts.investmentManager.connect(user).processBuy(randomAsset);
     console.log("%s made investment manager buy of %s", user.address, randomAsset);
 }
 
@@ -234,7 +234,7 @@ async function cashManagerProcessInvestmentBuy(contracts, user) {
         return addresses[key];
     });
     let randomAsset = getRandomElement(addressesArray);
-    await contracts.cashManager.connect(user).processInvestmentBuy(randomAsset);
+    await contracts.investmentManager.connect(user).processBuy(randomAsset);
     console.log("%s made investment manager buy of %s", user.address, randomAsset);
 }
 
@@ -343,7 +343,7 @@ describe('Fuzz Testing', function () {
             if ((data.buyAmount > 0) && (data.buyDeterminationTimestamp <= currentTimestampMinusOneDay)) {
                 console.log("Updating stale buy determination...");
                 if (data.reservedForBuy) {
-                    await contracts.cashManager.connect(user).processInvestmentBuy(asset); // clear the old determination
+                    await contracts.investmentManager.connect(user).processBuy(asset); // clear the old determination
                 }
                 await contracts.investmentManager.connect(user).determineBuy(asset);
                 data = await contracts.investmentManager.connect(user).investmentAssetsData(asset); //
@@ -352,7 +352,7 @@ describe('Fuzz Testing', function () {
                 if (!data.reservedForBuy) {
                     await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(asset);
                 }
-                await contracts.cashManager.connect(user).processInvestmentBuy(asset);
+                await contracts.investmentManager.connect(user).processBuy(asset);
             }
         }
 

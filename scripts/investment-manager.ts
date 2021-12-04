@@ -43,5 +43,5 @@ export async function makeInvestment(contracts, owner, user) {
     const endingWAVAXAmount = await wavax.connect(user).balanceOf(contracts.cashManager.address);
     await expect(endingWAVAXAmount).to.be.gte(authorizedBuyAmount);
     await expect(await tokens.joe.connect(user).balanceOf(contracts.cashManager.address)).to.equal(0);
-    await contracts.cashManager.connect(user).processInvestmentBuy(addresses.joe);
+    await contracts.investmentManager.connect(user).processBuy(addresses.joe);
 }

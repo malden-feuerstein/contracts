@@ -30,8 +30,6 @@ interface IInvestmentManager {
 
     function reserveForCashManagerPurchase(address asset, uint256 buyAmount) external;
 
-    function clearBuy(address asset, uint256 boughtAmount) external;
-
     function getBuyPath(address asset) view external returns (address[] memory);
 
     function totalValueInWAVAX() view external returns (uint256);

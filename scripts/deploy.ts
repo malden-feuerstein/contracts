@@ -40,7 +40,8 @@ async function deployAll() { // This will be used to deploy to main net
                                          swapRouter.address,
                                          valueHelpers.address,
                                          addresses.usdt,
-                                         cashManager.address);
+                                         cashManager.address,
+                                         joeRouterAddress);
     await swapRouter.setAddresses(joeFactoryAddress);
     await valueHelpers.setAddresses(addresses.wavax,
                                     cashManager.address,
