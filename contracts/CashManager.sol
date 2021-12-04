@@ -520,7 +520,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
             assert(liquidationsToPerform.length == 0);
             prepareDryPowder(buyAmount, wavaxOnHand);
         }
-        wavax.approve(address(investmentManager), buyAmount);
+        bool success = wavax.approve(address(investmentManager), buyAmount);
+        require(success, "WAVAX approval failed.");
         investmentManager.reserveForCashManagerPurchase(asset, buyAmount);
     }
 

@@ -291,8 +291,8 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         require(minimumReceived > 0, "Must have a minimum received to enforce.");
         // TODO: This constraint could cause issues if the total cash value in WAVAX changed from the time the InvestmentManager was
         // called to the time this is called
-        cashManager.clearInvestmentReservation(buyAmount);
         clearBuy(asset, buyAmount);
+        cashManager.clearInvestmentReservation(buyAmount);
         if (block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60)) { // actually process it only if it's not stale
             //require(wavax.balanceOf(address(this)) >= buyAmount, "Don't have sufficient WAVAX for this buyAmount.");
             // It's possible that liquidaitons to produce WAVAX dry powder didn't convert as much as desired due to
