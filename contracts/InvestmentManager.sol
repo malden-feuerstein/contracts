@@ -215,17 +215,18 @@ contract InvestmentManager is OwnableUpgradeable,
             // Now modify the betSize based on the AMM market conditions and slippage tolerances
             uint256 expectedReceived;
             uint256 minimumReceived;
-            if (asset != wavaxAddress) {
-                require(investmentAssetsData[asset].purchasePath[0] == wavaxAddress, "Purchase paths must start with WAVAX.");
-                (betSize, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(
-                                                                                        investmentAssetsData[asset].purchasePath,
-                                                                                        betSize,
-                                                                                        priceImpactTolerance);
-                minimumReceived = Library.subtractPercentage(expectedReceived, slippageTolerance);
-            } else { // if I'm just sending WAVAX then I should receive the exact amount
-                minimumReceived = betSize;
+            if (betSize > 0) { // Don't need to determine swap tolerances if the bet is 0
+                if (asset != wavaxAddress) {
+                    require(investmentAssetsData[asset].purchasePath[0] == wavaxAddress, "Purchase paths must start with WAVAX.");
+                    (betSize, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(investmentAssetsData[asset].purchasePath,
+                                                                                           betSize,
+                                                                                           priceImpactTolerance);
+                    minimumReceived = Library.subtractPercentage(expectedReceived, slippageTolerance);
+                } else { // if I'm just sending WAVAX then I should receive the exact amount
+                    minimumReceived = betSize;
+                }
+                betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
             }
-            betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
             //console.log("betSize %s", betSize);
             investmentAssetsData[asset].buyAmount = betSize; // in WAVAX
             investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
