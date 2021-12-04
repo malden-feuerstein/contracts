@@ -17,6 +17,7 @@ interface IInvestmentManager {
       bool exists;
       bool reservedForBuy;
     }
+    function investmentAssets(uint256 index) external view returns(address); // read property
 
     function investmentAssetsData(address) external view returns(address assetAddress,
                                                                  uint256 intrinsicValue,
@@ -31,6 +32,5 @@ interface IInvestmentManager {
     function reserveForCashManagerPurchase(address asset, uint256 buyAmount) external;
 
     function getBuyPath(address asset) view external returns (address[] memory);
-
-    function totalValueInWAVAX() view external returns (uint256);
+    function numInvestmentAssets() external view returns (uint256);
 }

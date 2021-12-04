@@ -45,7 +45,8 @@ async function deployAll() { // This will be used to deploy to main net
     await swapRouter.setAddresses(joeFactoryAddress);
     await valueHelpers.setAddresses(addresses.wavax,
                                     cashManager.address,
-                                    swapRouter.address);
+                                    swapRouter.address,
+                                    investmentManager.address);
     await coin.setAddresses(addresses.wavax,
                             cashManager.address,
                             valueHelpers.address,

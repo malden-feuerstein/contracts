@@ -48,7 +48,10 @@ async function coinInvest(contracts, user) {
 
 async function coinRedeem(contracts, user) {
     let result = await contracts.coin.connect(user).redeem();
-    // TODO: totalAVAXInvestments.sub(BigNumber.from(randomAmount)); get the amount from the event
+    console.log(result);
+    let amountRedeemed = result.events[0].args[0];
+    totalAVAXInvestments.sub(amountRedeemed);
+    console.log("%s redeemed %s MALD on a coinRedeem() call", user.address, amountRedeemed.toString());
 }
 
 async function coinRandomRedeem(contracts, user) {
@@ -89,10 +92,10 @@ async function coinFullRedeem(contracts, user) {
         let userAVAXBalanceBefore = await contracts.coin.provider.getBalance(user.address);
         await contracts.coin.connect(user).approve(contracts.coin.address, fullTokenAmount);
         let contractsValueBefore = (await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).add(
-            await contracts.investmentManager.connect(user).totalValueInWAVAX());
+            await contracts.valueHelpers.connect(user).investmentManagerTotalValueInWAVAX());
         await contracts.coin.connect(user).redeem();
         let contractsValueAfter = (await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).add(
-            await contracts.investmentManager.connect(user).totalValueInWAVAX());
+            await contracts.valueHelpers.connect(user).investmentManagerTotalValueInWAVAX());
         let userAVAXBalanceAfter = await contracts.coin.provider.getBalance(user.address);
         totalAVAXInvestments = totalAVAXInvestments.sub(fullTokenAmount);
         expect(await contracts.coin.balanceOf(user.address)).to.be.equal(expectedEndingTokenAmount);
@@ -319,7 +322,7 @@ describe('Fuzz Testing', function () {
         console.log("Out of %s calls, %s succeeded.", numCalls, numSuccessfulCalls);
 
         var cashManagerAVAXValue = await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX();
-        var investmentManagerAVAXValue = await contracts.investmentManager.connect(user).totalValueInWAVAX();
+        var investmentManagerAVAXValue = await contracts.valueHelpers.connect(user).investmentManagerTotalValueInWAVAX();
         var sumAVAXValue = cashManagerAVAXValue.add(investmentManagerAVAXValue);
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",
                     totalAVAXInvestments.toString(),sumAVAXValue.toString());
@@ -363,7 +366,7 @@ describe('Fuzz Testing', function () {
         // Any investments should roughly sum up to the WAVAX value of the cash manager + the WAVAX value of the investment manager
         // This ensures that no value was "lost"
         cashManagerAVAXValue = await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX();
-        investmentManagerAVAXValue = await contracts.investmentManager.connect(user).totalValueInWAVAX();
+        investmentManagerAVAXValue = await contracts.valueHelpers.connect(user).investmentManagerTotalValueInWAVAX();
         sumAVAXValue = cashManagerAVAXValue.add(investmentManagerAVAXValue);
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",
                     totalAVAXInvestments.toString(),sumAVAXValue.toString());

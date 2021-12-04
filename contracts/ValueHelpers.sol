@@ -7,10 +7,11 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 // local
 import "contracts/interfaces/IERC20.sol";
 import "contracts/interfaces/IValueHelpers.sol";
-import "contracts/Library.sol";
 import "contracts/interfaces/ICashManager.sol";
 import "contracts/interfaces/IWAVAX.sol";
 import "contracts/interfaces/ISwapRouter.sol";
+import "contracts/interfaces/IInvestmentManager.sol";
+import "contracts/Library.sol";
 
 contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
 
@@ -18,6 +19,7 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
     IWAVAX wavax;
     ICashManager cashManager;
     ISwapRouter swapRouter;
+    IInvestmentManager investmentManager;
 
     function initialize() external virtual initializer {
         __Ownable_init();
@@ -26,12 +28,16 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-    function setAddresses(address localWAVAXAddress, address cashManagerAddress, address swapRouterAddress) external onlyOwner {
+    function setAddresses(address localWAVAXAddress,
+                          address cashManagerAddress,
+                          address swapRouterAddress,
+                          address investmentManagerAddress) external onlyOwner {
         require(localWAVAXAddress != address(0), "Cannot set WAVAX address to 0");
         wavaxAddress = localWAVAXAddress;
         wavax = IWAVAX(localWAVAXAddress);
         cashManager = ICashManager(cashManagerAddress);
         swapRouter = ISwapRouter(swapRouterAddress);
+        investmentManager = IInvestmentManager(investmentManagerAddress);
     }
 
     // Return the total value of everything in the cash manager denominated in WAVAX
@@ -55,6 +61,29 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
         if (cashManager.cashAssetsAllocations(wavaxAddress) == 0) {
             uint256 wavaxBalance = wavax.balanceOf(address(cashManager));
             totalValue += wavaxBalance;
+        }
+        return totalValue;
+    }
+
+    // Return the total value of everything in the investment manager denominated in WAVAX
+    // TODO: This is a near duplicate of the same function in the CashManager. Ideally I wouldn't have this code duplication,
+    // but I'm unable to solve it because OpenZeppelin's upgradeability doesn't allow Library functions that modify state, nor
+    // the use of delegatecall
+    function investmentManagerTotalValueInWAVAX() view external returns (uint256) { // anyone can call this
+        uint256 totalValue = 0;
+        for (uint16 i = 0; i < investmentManager.numInvestmentAssets(); i++) {
+            address asset = investmentManager.investmentAssets(i);
+            if (asset == wavaxAddress) { // don't try to swap WAVAX to WAVAX
+                uint256 wavaxBalance = wavax.balanceOf(address(investmentManager));
+                totalValue += wavaxBalance;
+            } else {
+                IERC20 token = IERC20(asset);
+                uint256 tokenBalance = token.balanceOf(address(investmentManager));
+                // TODO: This assumes that asset -> wavax exists, but need to use the liquidatePath
+                Library.PriceQuote memory priceInWAVAX = swapRouter.getPriceQuote(asset, wavaxAddress);
+                uint256 valueInWAVAX = Library.priceMulAmount(tokenBalance, token.decimals(), priceInWAVAX.price);
+                totalValue += valueInWAVAX;
+            }
         }
         return totalValue;
     }

@@ -18,10 +18,10 @@ import "contracts/Library.sol";
 import "contracts/interfaces/IMaldenFeuersteinERC20.sol";
 
 // Typical Redemption Usage:
-// user.approve() - approve the contract to take from the user the malden ERC20 tokens
 // requestRedeem()
 // CashManager.prepareDryPowderForRedemption()
 // CashManager.processLiquidation() in a loop until liquidations are complete
+// approve() - the user approves the contract to take from the user the malden ERC20 tokens
 // redeem() to finally exchange the ERC20 token for the equivalent value in WAVAX
 
 contract MaldenFeuersteinERC20 is ERC20Upgradeable,
@@ -185,7 +185,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
             require((block.timestamp - timestamps[msg.sender]) >= 86400, "Must wait at least one day to redeem an investment.");
         }
         require(amount > 0, "Cannot redeem 0 tokens");
-        uint256 totalValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX() + investmentManager.totalValueInWAVAX();
+        uint256 totalValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX() + valueHelpers.investmentManagerTotalValueInWAVAX();
         // What percent of the total number of ERC20 tokens is amount?
         uint256 redemptionPercentage = Library.valueIsWhatPercentOf(amount, circulatingSupply);
         uint256 wavaxAmountToRedeem = Library.percentageOf(totalValueInWAVAX, redemptionPercentage);

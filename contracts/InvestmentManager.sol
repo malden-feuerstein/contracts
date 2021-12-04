@@ -280,29 +280,6 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         }
     }
 
-    // Return the total value of everything in the investment manager denominated in WAVAX
-    // TODO: This is a near duplicate of the same function in the CashManager. Ideally I wouldn't have this code duplication,
-    // but I'm unable to solve it because OpenZeppelin's upgradeability doesn't allow Library functions that modify state, nor
-    // the use of delegatecall
-    function totalValueInWAVAX() view external returns (uint256) { // anyone can call this
-        uint256 totalValue = 0;
-        for (uint16 i = 0; i < investmentAssets.length; i++) {
-            address asset = investmentAssets[i];
-            if (asset == wavaxAddress) { // don't try to swap WAVAX to WAVAX
-                uint256 wavaxBalance = wavax.balanceOf(address(this));
-                totalValue += wavaxBalance;
-            } else {
-                IERC20 token = IERC20(asset);
-                uint256 tokenBalance = token.balanceOf(address(this));
-                // TODO: This assumes that asset -> wavax exists, but need to use the liquidatePath
-                Library.PriceQuote memory priceInWAVAX = swapRouter.getPriceQuote(asset, wavaxAddress);
-                uint256 valueInWAVAX = Library.priceMulAmount(tokenBalance, token.decimals(), priceInWAVAX.price);
-                totalValue += valueInWAVAX;
-            }
-        }
-        return totalValue;
-    }
-
     // Uses cash on hand to make a purchase of a particular asset
     function processBuy(address asset) external whenNotPaused { // anyone can call this
         uint256 buyAmount = investmentAssetsData[asset].buyAmount;
