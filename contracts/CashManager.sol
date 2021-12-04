@@ -10,14 +10,14 @@ import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 
 // local
-import "contracts/IERC20.sol";
+import "contracts/interfaces/IERC20.sol";
+import "contracts/interfaces/ICashManager.sol";
+import "contracts/interfaces/IWAVAX.sol";
+import "contracts/interfaces/ISwapRouter.sol";
+import "contracts/interfaces/IMaldenFeuersteinERC20.sol";
+import "contracts/interfaces/IInvestmentManager.sol";
+import "contracts/interfaces/IValueHelpers.sol";
 import "contracts/Library.sol";
-import "contracts/ICashManager.sol";
-import "contracts/IWAVAX.sol";
-import "contracts/ISwapRouter.sol";
-import "contracts/IMaldenFeuersteinERC20.sol";
-import "contracts/IInvestmentManager.sol";
-import "contracts/IValueHelpers.sol";
 
 // Typical usage:
 // The owner of CashManager calls setCashAllocations to set the target percentages of each cash asset on hand
@@ -59,17 +59,17 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     uint256 public investmentReservedWAVAXAmount;
 
     // contracts
-    address wavaxAddress;
-    IWAVAX wavax;
-    IJoeRouter02 joeRouter;
-    ISwapRouter swapRouter;
-    IMaldenFeuersteinERC20 coin;
-    IValueHelpers valueHelpers;
-    IInvestmentManager investmentManager;
-    IERC20 usdt;
+    address private wavaxAddress;
+    IWAVAX private wavax;
+    IJoeRouter02 private joeRouter;
+    ISwapRouter private swapRouter;
+    IMaldenFeuersteinERC20 private coin;
+    IValueHelpers private valueHelpers;
+    IInvestmentManager private investmentManager;
+    IERC20 private usdt;
     
     // roles
-    bytes32 public constant INVESTMENT_MANAGER_ROLE = keccak256("INVESTMENT_MANAGER_ROLE");
+    bytes32 private constant INVESTMENT_MANAGER_ROLE = keccak256("INVESTMENT_MANAGER_ROLE");
 
     // constants
     // As of this writing average Avalanche C-Chain block time is 2 seconds

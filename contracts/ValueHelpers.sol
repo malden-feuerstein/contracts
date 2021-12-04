@@ -5,12 +5,12 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 // local
-import "contracts/IERC20.sol";
-import "contracts/IValueHelpers.sol";
+import "contracts/interfaces/IERC20.sol";
+import "contracts/interfaces/IValueHelpers.sol";
 import "contracts/Library.sol";
-import "contracts/ICashManager.sol";
-import "contracts/IWAVAX.sol";
-import "contracts/ISwapRouter.sol";
+import "contracts/interfaces/ICashManager.sol";
+import "contracts/interfaces/IWAVAX.sol";
+import "contracts/interfaces/ISwapRouter.sol";
 
 contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
 

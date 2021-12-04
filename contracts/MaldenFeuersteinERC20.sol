@@ -10,12 +10,12 @@ import "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeabl
 import "hardhat/console.sol"; // TODO: Remove this for production
 
 // local
-import "contracts/IWAVAX.sol";
-import "contracts/ICashManager.sol";
-import "contracts/IValueHelpers.sol";
-import "contracts/IInvestmentManager.sol";
+import "contracts/interfaces/IWAVAX.sol";
+import "contracts/interfaces/ICashManager.sol";
+import "contracts/interfaces/IValueHelpers.sol";
+import "contracts/interfaces/IInvestmentManager.sol";
 import "contracts/Library.sol";
-import "contracts/IMaldenFeuersteinERC20.sol";
+import "contracts/interfaces/IMaldenFeuersteinERC20.sol";
 
 // Typical Redemption Usage:
 // user.approve() - approve the contract to take from the user the malden ERC20 tokens

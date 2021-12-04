@@ -8,9 +8,9 @@ import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoePair.sol";
 import "hardhat/console.sol"; // TODO: Remove this for production
 
 // local
-import "contracts/IERC20.sol";
+import "contracts/interfaces/IERC20.sol";
 import "contracts/Library.sol";
-import "contracts/ISwapRouter.sol";
+import "contracts/interfaces/ISwapRouter.sol";
 
 // Everything in this contract should be view or internal
 // TODO: I will not necessarily want only one router. What about Pangolin? What about other routers altogether?

@@ -10,13 +10,13 @@ import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 
 // local
-import "contracts/IERC20.sol";
+import "contracts/interfaces/IERC20.sol";
 import "contracts/Library.sol";
-import "contracts/IInvestmentManager.sol";
-import "contracts/ISwapRouter.sol";
-import "contracts/IWAVAX.sol";
-import "contracts/IValueHelpers.sol";
-import "contracts/ICashManager.sol";
+import "contracts/interfaces/IInvestmentManager.sol";
+import "contracts/interfaces/ISwapRouter.sol";
+import "contracts/interfaces/IWAVAX.sol";
+import "contracts/interfaces/IValueHelpers.sol";
+import "contracts/interfaces/ICashManager.sol";
 
 // Typical Usage to make an investment (buy):
 // Call setInvestmentAsset() to create a list of assets to invest in
@@ -33,16 +33,16 @@ import "contracts/ICashManager.sol";
 contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable, IInvestmentManager {
     event DeterminedBuy(address, uint256, uint256); // address of asset to  buy, amount to buy, kelly fraction
 
-    bytes32 public constant CASH_MANAGER_ROLE = keccak256("CASH_MANAGER_ROLE");
+    bytes32 private constant CASH_MANAGER_ROLE = keccak256("CASH_MANAGER_ROLE");
 
     // contracts
-    address wavaxAddress;
-    IWAVAX wavax;
-    IERC20 usdt;
-    ISwapRouter swapRouter;
-    IValueHelpers valueHelpers;
-    ICashManager cashManager;
-    IJoeRouter02 joeRouter;
+    address private wavaxAddress;
+    IWAVAX private wavax;
+    IERC20 private usdt;
+    ISwapRouter private swapRouter;
+    IValueHelpers private valueHelpers;
+    ICashManager private cashManager;
+    IJoeRouter02 private joeRouter;
 
     // constants
     // As of this writing average Avalanche C-Chain block time is 2 seconds
