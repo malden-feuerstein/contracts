@@ -73,8 +73,8 @@ export default {
   },
   networks: {
     hardhat: {
-      gasPrice: 250000000000, // 225 nAVAX (GWei)
-      //gasPrice: 1000000000000, // high value, network seems to have high gas right now?
+      //gasPrice: 250000000000, // 225 nAVAX (GWei)
+      gasPrice: 1000000000000, // high value, used when the network has congestion
       forking: forkingData
     },
     local: {

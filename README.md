@@ -65,6 +65,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - When the kelly bet is larger than the total cash on hand, liquidate all cash assets to WAVAX and use all WAVAX to buy
 - Find a way to test same-block transactions in the Fuzzing tests using [this](https://hardhat.org/hardhat-network/explanation/mining-modes.html).
 - Test: Redemption scenario where there is nothing in the cash manager, everything is in the investment manager
+- FIXME: There's an issue with redemptions where users can get a bit more than they are owed because the swap slippage in the liquidations performed to get their WAVAX are not taken into account for the amount of WAVAX given to the user.
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called

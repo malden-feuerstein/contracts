@@ -1,11 +1,12 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.0;
 
-interface IInvestmentManager {
+import "contracts/interfaces/IRedeemable.sol";
+
+interface IInvestmentManager is IRedeemable {
     struct InvestmentAsset {
       address assetAddress;
       uint256 intrinsicValue; // intrinsive value estimate in USDT
-      address[] liquidatePath;
       address[] purchasePath;
       uint256[] prices;
       uint256[] priceTimestamps;
@@ -17,7 +18,6 @@ interface IInvestmentManager {
       bool exists;
       bool reservedForBuy;
     }
-    function investmentAssets(uint256 index) external view returns(address); // read property
 
     function investmentAssetsData(address) external view returns(address assetAddress,
                                                                  uint256 intrinsicValue,
@@ -32,5 +32,4 @@ interface IInvestmentManager {
     function reserveForCashManagerPurchase(address asset, uint256 buyAmount) external;
 
     function getBuyPath(address asset) view external returns (address[] memory);
-    function numInvestmentAssets() external view returns (uint256);
 }

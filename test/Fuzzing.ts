@@ -328,11 +328,11 @@ describe('Fuzz Testing', function () {
                     totalAVAXInvestments.toString(),sumAVAXValue.toString());
 
         // Get all the assets in the investment manager
-        const numInvestmentAssets = await contracts.investmentManager.connect(user).numInvestmentAssets();
+        const numInvestmentAssets = await contracts.investmentManager.connect(user).numAssets();
         console.log("There are %s investmentAssets", numInvestmentAssets);
         var investmentAssets = [];
         for (let i = 0; i < numInvestmentAssets; i++) {
-            const investmentAsset = await contracts.investmentManager.connect(user).investmentAssets(i);
+            const investmentAsset = await contracts.investmentManager.connect(user).assets(i);
             investmentAssets.push(investmentAsset); }
         expect(investmentAssets.length).to.be.equal(numInvestmentAssets);
 

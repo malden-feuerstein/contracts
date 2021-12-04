@@ -13,10 +13,10 @@ import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 import "contracts/interfaces/IERC20.sol";
 import "contracts/Library.sol";
 import "contracts/interfaces/IInvestmentManager.sol";
-import "contracts/interfaces/ISwapRouter.sol";
 import "contracts/interfaces/IWAVAX.sol";
 import "contracts/interfaces/IValueHelpers.sol";
 import "contracts/interfaces/ICashManager.sol";
+import "contracts/Redeemable.sol";
 
 // Typical Usage to make an investment (buy):
 // Call setInvestmentAsset() to create a list of assets to invest in
@@ -30,34 +30,32 @@ import "contracts/interfaces/ICashManager.sol";
 // Call determineSell() to determine if the criteria for selling an asset have been met
 // TODO: Call processSell() to perform determined sells and send the WAVAX to the CashManager
 
-contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable, IInvestmentManager {
-    event DeterminedBuy(address, uint256, uint256); // address of asset to  buy, amount to buy, kelly fraction
+contract InvestmentManager is OwnableUpgradeable,
+                              UUPSUpgradeable,
+                              AccessControlUpgradeable,
+                              PausableUpgradeable,
+                              IInvestmentManager,
+                              Redeemable {
+    event DeterminedBuy(address, uint256, uint256); // address of asset to buy, amount to buy, kelly fraction
 
     bytes32 private constant CASH_MANAGER_ROLE = keccak256("CASH_MANAGER_ROLE");
 
     // contracts
-    address private wavaxAddress;
-    IWAVAX private wavax;
     IERC20 private usdt;
-    ISwapRouter private swapRouter;
     IValueHelpers private valueHelpers;
     ICashManager private cashManager;
-    IJoeRouter02 private joeRouter;
 
     // constants
     // As of this writing average Avalanche C-Chain block time is 2 seconds
     // https://snowtrace.io/chart/blocktime
     uint256 private newBlockEveryNMicroseconds;
     uint256 private minimumSwapValue;
-    uint256 private priceImpactTolerance; // price impact micro percentage
     uint256 private priceUpdateInterval; // minimum number of seconds to pass between asset price updates
     uint8 private nWeeksOfScorn; // If an asset has been falling in price or stable in price for the past n weeks, then it's a buy
     uint256 private marginOfSafety; // percentage under intrinsic value an asset must be to warrant a buy
-    uint256 private slippageTolerance;
 
     // investment storage
-    mapping(address => InvestmentAsset) public investmentAssetsData; // mapping investmentAssets -> intrinsic value
-    address[] public investmentAssets; // A list of the assets for potential investment
+    mapping(address => InvestmentAsset) public investmentAssetsData; // mapping assets -> intrinsic value
     uint16 numBuysAuthorized;
 
     function initialize() external virtual initializer {
@@ -73,6 +71,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         nWeeksOfScorn = 4;
         slippageTolerance = 5 * (10 ** 6) / 10; // 0.5%
         marginOfSafety = 25 * (10 ** 6);
+        managerChoice = ManagerChoice.InvestmentManager;
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner whenNotPaused {}
@@ -82,7 +81,8 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
                           address valueHelpersAddress,
                           address usdtAddress,
                           address cashManagerAddress,
-                          address joeRouterAddress) external onlyOwner whenNotPaused {
+                          address joeRouterAddress,
+                          address coinAddress) external onlyOwner whenNotPaused {
         require(localWAVAXAddress != address(0));
         wavaxAddress = localWAVAXAddress;
         wavax = IWAVAX(wavaxAddress);
@@ -92,6 +92,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         cashManager = ICashManager(cashManagerAddress);
         _setupRole(CASH_MANAGER_ROLE, cashManagerAddress);
         joeRouter = IJoeRouter02(joeRouterAddress);
+        coin = IMaldenFeuersteinERC20(coinAddress);
     }
 
     function pause() external whenNotPaused onlyOwner {
@@ -100,11 +101,6 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
 
     function unpause() external whenPaused onlyOwner {
         _unpause();
-    }
-
-    // A conenvience function to read the number of investment assets that are set on this contract
-    function numInvestmentAssets() external view returns (uint256) {
-        return investmentAssets.length;
     }
 
     // Set the intrinsic value for a particular asset
@@ -127,13 +123,14 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
         if (investmentAssetsData[asset].exists) { // Already there, update values
             assert(investmentAssetsData[asset].assetAddress == asset);
             investmentAssetsData[asset].intrinsicValue = intrinsicValue;
-            investmentAssetsData[asset].liquidatePath = liquidatePath;
+            // This is not a part of the InvestmentAsset struct so that it's compatible with Redeemable
+            liquidatePaths[asset] = liquidatePath;
             investmentAssetsData[asset].purchasePath = purchasePath;
         } else { // Not there already, add it
             uint256[] memory emptyArray;
+            liquidatePaths[asset] = liquidatePath;
             InvestmentAsset memory newAsset = InvestmentAsset(asset,
                                                               intrinsicValue,
-                                                              liquidatePath,
                                                               purchasePath,
                                                               emptyArray,
                                                               emptyArray,
@@ -145,13 +142,13 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
                                                               true,
                                                               false);
             investmentAssetsData[asset] = newAsset;
-            investmentAssets.push(asset);
+            assets.push(asset);
         }
     }
 
     // Store the latest price for a particular investment asset
     function getLatestPrice(address asset) external whenNotPaused { // anyone can call this
-        require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
+        require(investmentAssetsData[asset].exists, "asset is not in the chosen list of assets.");
         assert(investmentAssetsData[asset].prices.length == investmentAssetsData[asset].priceTimestamps.length);
 
         // Assert that the most recent price wasn't too recent
@@ -170,7 +167,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     // If so, record it so that processSell() can sell it
     // TODO: Are there any issues with someone being able to call this at any time?
     function determineSell(address asset) external whenNotPaused { // anyone can call this at any time
-        require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
+        require(investmentAssetsData[asset].exists, "asset is not in the chosen list of assets.");
         // TODO: I don't want to assume that asset -> usdt exists directly, need to use liquidatePath
         Library.PriceQuote memory currentPrice = swapRouter.getPriceQuote(asset, address(usdt));
         // Sell when an asset is 50% above the intrinsicValue
@@ -190,7 +187,7 @@ contract InvestmentManager is OwnableUpgradeable, UUPSUpgradeable, AccessControl
     // With the Kelly bet here we want to be rougly right rather than exactly wrong
     // Will place fractional Kelly bets
     function determineBuy(address asset) external whenNotPaused { // anyone can call this
-        require(investmentAssetsData[asset].exists, "asset is not in the chosen list of investmentAssets.");
+        require(investmentAssetsData[asset].exists, "asset is not in the chosen list of assets.");
         require(investmentAssetsData[asset].sellAmount == 0, "cannot buy asset if sell is pending.");
         require(investmentAssetsData[asset].prices.length >= nWeeksOfScorn, "Must have a minimum number of price samples.");
         require(!investmentAssetsData[asset].reservedForBuy, "Cannot determine a buy on an asset currently reserved for buy.");

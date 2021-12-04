@@ -13,6 +13,9 @@ library Library {
         address token1;
     }
 
+    // constant
+    uint8 public constant PERCENTAGE_DECIMALS = 6;
+
     // Use this to get the decimals right any time you're multiplying an amount of a token by the price of token
     // This is typically for changing an amount of a token into its USD value
     // usdAmount = tokenAmount * price / decimals;
@@ -33,37 +36,37 @@ library Library {
     // Returns micro pecentage (percentage with 6 decimal places)
     function valueIsWhatPercentOf(uint256 value1, uint256 value2) internal pure returns (uint256) {
         require(value2 > 0, "Can't compare to 0 value2.");
-        return (value1 * 100 * (10 ** 6)) / value2;
+        return (value1 * 100 * (10 ** PERCENTAGE_DECIMALS)) / value2;
     }
 
     // value * percentage. Be aware that this loses the fractioanl part of the division, so there may be rounding errors
     // Expects percentage to be in micro percentages == perentage * (10**6)
     function percentageOf(uint256 value, uint256 percentage) internal pure returns (uint256) {
-        return (value * percentage) / (100 * (10 ** 6));
+        return (value * percentage) / (100 * (10 ** PERCENTAGE_DECIMALS));
     }
 
     // Subtract a percentage of the given value from the given value
     // Expects percentage to be given in micro percentage points
     function subtractPercentage(uint256 value, uint256 percentage) internal pure returns (uint256) {
         require(percentage > 0, "Cannot subtract 0 percentage.");
-        return value - ((value * percentage) / (100 * (10 ** 6)));
+        return value - ((value * percentage) / (100 * (10 ** PERCENTAGE_DECIMALS)));
     }
 
     // Add a percentage of the given value to the given value
     // Expects percentage to be in micro percentage points (that is, percentage with 6 decimal places)
     function addPercentage(uint256 value, uint256 percentage) internal pure returns (uint256) {
         require(percentage > 0, "Cannot add 0 percentage.");
-        return value + ((value * percentage) / (100 * (10 ** 6)));
+        return value + ((value * percentage) / (100 * (10 ** PERCENTAGE_DECIMALS)));
     }
 
     // Returns the kelly fraction in micro precentage points
     // Takes the confidence in micro percentage points
     // https://en.wikipedia.org/wiki/Kelly_criterion#Investment_formula
     function kellyFraction(uint256 confidence, uint256 lossPercent, uint256 gainPercent) internal pure returns (uint256) {
-        require(confidence <= (100 * (10 ** 6))); // can not be more than 100% confident
+        require(confidence <= (100 * (10 ** PERCENTAGE_DECIMALS))); // can not be more than 100% confident
         require(confidence > 0, "Cannot have a confidence of 0.");
-        uint256 positive = ((confidence * (10 ** 6)) / lossPercent);
-        uint256 negative = (((100 * (10 ** 6)) - confidence) * (10 ** 6)) / gainPercent;
+        uint256 positive = ((confidence * (10 ** PERCENTAGE_DECIMALS)) / lossPercent);
+        uint256 negative = (((100 * (10 ** PERCENTAGE_DECIMALS)) - confidence) * (10 ** PERCENTAGE_DECIMALS)) / gainPercent;
         if (negative > positive) { // in this situation the kelly criterion is saying to bet nothing, it's not worth it
             return 0;
         } else {

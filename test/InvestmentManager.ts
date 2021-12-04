@@ -78,7 +78,7 @@ describe('Test InvestmentManager', function () {
     })
 
     it ("Should set investment targets", async function() {
-        await expect(investmentManager.connect(user).investmentAssets(0)).to.be.
+        await expect(investmentManager.connect(user).assets(0)).to.be.
             revertedWith("Transaction reverted without a reason string");
         await expect(investmentManager.connect(user).setInvestmentAsset(wavax.address,
                                                                         260 * (10 ** 6),
@@ -86,20 +86,20 @@ describe('Test InvestmentManager', function () {
                                                                         liquidatePaths.wavax,
                                                                         purchasePaths.wavax)).to.be.revertedWith(
                                                                         "Ownable: caller is not the owner");
-        await expect(investmentManager.connect(user).investmentAssets(0)).to.be.
+        await expect(investmentManager.connect(user).assets(0)).to.be.
             revertedWith("Transaction reverted without a reason string");
         await investmentManager.connect(owner).setInvestmentAsset(wavax.address,
                                                                   260 * (10 ** 6),
                                                                   75 * (10 ** 6), // 75% confidence
                                                                   liquidatePaths.wavax,
                                                                   purchasePaths.wavax);
-        expect(await investmentManager.connect(user).investmentAssets(0)).to.be.equal(wavax.address);
+        expect(await investmentManager.connect(user).assets(0)).to.be.equal(wavax.address);
         await investmentManager.setInvestmentAsset(wavax.address,
                                                    260 * (10 ** 6),
                                                    70 * (10 ** 6), // 70% confidence
                                                    liquidatePaths.wavax,
                                                    purchasePaths.wavax);
-        await expect(investmentManager.connect(user).investmentAssets(1)).to.be.
+        await expect(investmentManager.connect(user).assets(1)).to.be.
             revertedWith("Transaction reverted without a reason string");
     })
 
@@ -110,7 +110,7 @@ describe('Test InvestmentManager', function () {
         await expect(contracts.investmentManager.connect(user).processBuy(addresses.wavax)).to.be.
             revertedWith("This asset isn't in the investment manager.");
         await expect(investmentManager.connect(user).getLatestPrice(addresses.wavax)).to.be.
-            revertedWith("asset is not in the chosen list of investmentAssets.");
+            revertedWith("asset is not in the chosen list of assets.");
 
         const token = await ethers.getContractAt("IERC20", addresses.wavax);
         await investmentManager.connect(owner).setInvestmentAsset(addresses.wavax,
@@ -119,7 +119,7 @@ describe('Test InvestmentManager', function () {
                                                                   liquidatePaths.wavax,
                                                                   purchasePaths.wavax);
         await expect(investmentManager.connect(user).determineBuy(addresses.wbtc)).to.be.
-            revertedWith("asset is not in the chosen list of investmentAssets.");
+            revertedWith("asset is not in the chosen list of assets.");
         await expect(investmentManager.connect(user).determineBuy(addresses.wavax)).to.be.
             revertedWith("Must have a minimum number of price samples.");
         await expect(contracts.investmentManager.connect(user).processBuy(addresses.wavax)).to.be.

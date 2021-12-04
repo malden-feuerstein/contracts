@@ -57,7 +57,7 @@ describe('Test CashManager', function () {
     // TODO: Add a test that upgrading a variable like
 
     it ("Should have the right cash allocations", async function() {
-        await expect(cashManager.connect(user).cashAssets(0)).to.be.revertedWith("Transaction reverted without a reason string");
+        await expect(cashManager.connect(user).assets(0)).to.be.revertedWith("Transaction reverted without a reason string");
 
         var testAssets = [];
         var testAllocations = [100 * (10 ** 6)];
@@ -80,7 +80,7 @@ describe('Test CashManager', function () {
                                                                testAllocations,
                                                                testLiquidationPaths,
                                                                testPurchasePaths);
-        const cashAsset = await cashManager.cashAssets(0);
+        const cashAsset = await cashManager.assets(0);
         expect(cashAsset == addresses.wavax);
 
         // Make an initial investment
@@ -114,9 +114,9 @@ describe('Test CashManager', function () {
                                                                testAllocations,
                                                                testLiquidationPaths,
                                                                testPurchasePaths);
-        expect(await cashManager.connect(user).numberOfCashAssets()).to.equal(7);
-        expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(6);
-        expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(8);
+        expect(await cashManager.connect(user).numAssets()).to.equal(7);
+        expect(await cashManager.connect(user).numAssets()).to.not.equal(6);
+        expect(await cashManager.connect(user).numAssets()).to.not.equal(8);
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await expect(cashManager.connect(user).updateLiquidationsAndPurchases()).to.be.revertedWith(
             "Asset is missing from the cashAssetsPrices.");
@@ -140,7 +140,7 @@ describe('Test CashManager', function () {
                                                                testAllocations,
                                                                testLiquidationPaths,
                                                                testPurchasePaths);
-        await expect(await cashManager.connect(user).numberOfCashAssets()).to.equal(5);
+        await expect(await cashManager.connect(user).numAssets()).to.equal(5);
         await expect(await (await ethers.getContractAt("IERC20", addresses.wbtc)).balanceOf(cashManager.address)).to.be.equal(0);
         await cashManager.connect(user).updateCashPrices();
         await expect(cashManager.connect(user).updateLiquidationsAndPurchases()).to.be.revertedWith(
@@ -177,7 +177,7 @@ describe('Test CashManager', function () {
     //
     // TODO: Add a test that triggers a processLiquidation() (liquidate something other than WAVAX)
     it ("Should do full and partial liquidations correctly", async function() {
-        await expect(cashManager.connect(user).cashAssets(0)).to.be.revertedWith("Transaction reverted without a reason string");
+        await expect(cashManager.connect(user).assets(0)).to.be.revertedWith("Transaction reverted without a reason string");
 
         // Make an initial investment
         await coin.connect(user).invest({"value": userInvestmentAmount});
@@ -217,7 +217,7 @@ describe('Test CashManager', function () {
                                                             testAllocations,
                                                             testLiquidationPaths,
                                                             testPurchasePaths);
-        await expect(await cashManager.connect(user).numberOfCashAssets()).to.equal(6);
+        await expect(await cashManager.connect(user).numAssets()).to.equal(6);
         await expect(await (await ethers.getContractAt("IERC20", addresses.wbtc)).balanceOf(cashManager.address)).to.be.equal(0);
         await cashManager.connect(user).updateCashPrices();
         await expect(cashManager.connect(user).updateLiquidationsAndPurchases()).to.be.revertedWith(

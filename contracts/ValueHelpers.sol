@@ -43,8 +43,8 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
     // Return the total value of everything in the cash manager denominated in WAVAX
     function cashManagerTotalValueInWAVAX() external view returns (uint256) { // anyone can call this
         uint256 totalValue = 0;
-        for (uint16 i = 0; i < cashManager.numberOfCashAssets(); i++) {
-            address asset = cashManager.cashAssets(i);
+        for (uint16 i = 0; i < cashManager.numAssets(); i++) {
+            address asset = cashManager.assets(i);
             if (asset == wavaxAddress) { // don't try to swap WAVAX to WAVAX
                 uint256 wavaxBalance = wavax.balanceOf(address(cashManager));
                 totalValue += wavaxBalance;
@@ -71,8 +71,8 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
     // the use of delegatecall
     function investmentManagerTotalValueInWAVAX() view external returns (uint256) { // anyone can call this
         uint256 totalValue = 0;
-        for (uint16 i = 0; i < investmentManager.numInvestmentAssets(); i++) {
-            address asset = investmentManager.investmentAssets(i);
+        for (uint16 i = 0; i < investmentManager.numAssets(); i++) {
+            address asset = investmentManager.assets(i);
             if (asset == wavaxAddress) { // don't try to swap WAVAX to WAVAX
                 uint256 wavaxBalance = wavax.balanceOf(address(investmentManager));
                 totalValue += wavaxBalance;
@@ -84,6 +84,13 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
                 uint256 valueInWAVAX = Library.priceMulAmount(tokenBalance, token.decimals(), priceInWAVAX.price);
                 totalValue += valueInWAVAX;
             }
+        }
+        // Any WAVAX on hand needs to be counted toward the total
+        bool exists;
+        (, , , , , , , exists, ) = investmentManager.investmentAssetsData(address(wavax));
+        if (!exists) {
+            uint256 wavaxBalance = wavax.balanceOf(address(investmentManager));
+            totalValue += wavaxBalance;
         }
         return totalValue;
     }

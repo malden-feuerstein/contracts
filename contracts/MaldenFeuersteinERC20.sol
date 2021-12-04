@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import "hardhat/console.sol"; // TODO: Remove this for production
+import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 
 // local
 import "contracts/interfaces/IWAVAX.sol";
@@ -21,8 +22,8 @@ import "contracts/interfaces/IMaldenFeuersteinERC20.sol";
 // requestRedeem()
 // CashManager.prepareDryPowderForRedemption()
 // CashManager.processLiquidation() in a loop until liquidations are complete
-// TODO: InvestmentManager.prepareDryPowderForRedemption()
-// TODO: InvestmentManager.processLiquidation() in a loop until liquidations are complete
+// InvestmentManager.prepareDryPowderForRedemption()
+// InvestmentManager.processLiquidation() in a loop until liquidations are complete
 // approve() - the user approves the contract to take from the user the malden ERC20 tokens
 // redeem() to finally exchange the ERC20 token for the equivalent value in WAVAX
 
@@ -38,16 +39,19 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         uint256 cashManagerWAVAXAmount;
         uint256 investmentManagerWAVAXAmount;
     }
+    // constants
+    string private constant TOKEN_NAME = "Malden Feuerstein";
+    string private constant TOKEN_SYMBOL = "MALD";
+    uint256 private constant TOTAL_SUPPLY = 1e5 ether;
 
+    // contracts
     address wavaxAddress;
     IWAVAX wavax;
     ICashManager cashManager;
     IValueHelpers valueHelpers;
     IInvestmentManager investmentManager;
 
-    string private constant TOKEN_NAME = "Malden Feuerstein";
-    string private constant TOKEN_SYMBOL = "MALD";
-    uint256 private constant TOTAL_SUPPLY = 1e5 ether;
+    // storage
     uint256 public circulatingSupply;
     bool private stopped; // emergency stop everything
     bool private investmentPeriodOver; // Set to true once the initial investment period is over
@@ -153,13 +157,24 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         authorizedRedemptions[msg.sender].maldenCoinAmount = 0; // no longer authorized
         authorizedRedemptions[msg.sender].cashManagerWAVAXAmount = 0;
         authorizedRedemptions[msg.sender].investmentManagerWAVAXAmount = 0;
+        uint256 oldCirculatingSupply = circulatingSupply;
         circulatingSupply -= maldenCoinAmount;
         require(circulatingSupply <= TOTAL_SUPPLY, "Cannot have more MALD tokens than TOTAL_SUPPLY");
+
+        cashManagerWAVAXAmount = Math.min(cashManagerWAVAXAmount, wavax.balanceOf(address(cashManager)));
+        investmentManagerWAVAXAmount = Math.min(investmentManagerWAVAXAmount, wavax.balanceOf(address(investmentManager)));
+        // Confirm again that the amount being taken out is the right percentage
+        uint256 maldPercentageOfFund = Library.valueIsWhatPercentOf(maldenCoinAmount, oldCirculatingSupply);
+        require(maldPercentageOfFund <= 100 * (10 ** Library.PERCENTAGE_DECIMALS));
+        uint256 totalValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX() + valueHelpers.investmentManagerTotalValueInWAVAX();
+        uint256 wavaxPercentageOfFund = Library.valueIsWhatPercentOf(cashManagerWAVAXAmount + investmentManagerWAVAXAmount,
+                                                                     totalValueInWAVAX);
+        if (wavaxPercentageOfFund > maldPercentageOfFund) { // Must be within 0.1%
+            require(wavaxPercentageOfFund - maldPercentageOfFund < 1e5, "Coin: Percentage too large.");
+        } else {
+            require(maldPercentageOfFund - wavaxPercentageOfFund < 1e5, "Coin: Percentage too small.");
+        }
         // take the tokens from the person
-        require(wavax.balanceOf(address(cashManager)) >= cashManagerWAVAXAmount,
-                "CashManager doesn't have enough WAVAX to fill this redemption.");
-        require(wavax.balanceOf(address(investmentManager)) >= investmentManagerWAVAXAmount,
-               "InvestmentManager doesn't have enough WAVAX to fill this redemption.");
         uint256 wavaxTotal = cashManagerWAVAXAmount + investmentManagerWAVAXAmount;
         emit Redeemed(wavaxTotal);
         bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);

@@ -45,7 +45,8 @@
     "fund-cchain-addresses": "npx hardhat run scripts/fund-cchain-addresses.js",
     "analyze": "slither . --filter-paths \"hardhat|openzeppelin|traderjoe-xyz\" --exclude solc-version",
     "myth": "myth analyze --solc-json solidity.json",
-    "fuzz": "./run_fuzzing.sh > out.txt"
+    "fuzz": "./run_fuzzing.sh > out.txt",
+    "coverage": "npx hardhat coverage"
   },
   "dependencies": {
     "@gnosis.pm/safe-contracts": "https://github.com/gnosis/safe-contracts/archive/refs/tags/v1.3.0.tar.gz",

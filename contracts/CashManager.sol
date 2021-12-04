@@ -17,6 +17,7 @@ import "contracts/interfaces/ISwapRouter.sol";
 import "contracts/interfaces/IMaldenFeuersteinERC20.sol";
 import "contracts/interfaces/IInvestmentManager.sol";
 import "contracts/interfaces/IValueHelpers.sol";
+import "contracts/Redeemable.sol";
 import "contracts/Library.sol";
 
 // Typical usage:
@@ -29,41 +30,30 @@ import "contracts/Library.sol";
 // 4) After all liquidations are completed, anyone calls processPurchase() repeatedly until all queued purchases are processed.
 // 5) If any of the liquidations or purchases were completed only partially because the orders were too big given the price impact requirements, steps 1-4 can be repeated on the following day to move closer to the desired cash allocations.
 
-contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, PausableUpgradeable, AccessControlUpgradeable {
+contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, PausableUpgradeable, AccessControlUpgradeable, Redeemable {
     event AddedCashAsset(address);
     event RemovedCashAsset(address);
     event IncreasedCashAsset(address);
     event DecreasedCashAsset(address);
-    event Liquidated(address); // emitted when an asset is liquidated because it's no longer a cash holding
     event Purchased(address); // emitted when an asset is purchased to reach target cash holding percentage
 
-    // Relying on a whole day of time transpiring here, it's unlikely that miners can manipulate timestamp this much
-    // Can have at most uint16 max value length = 65535
-    address[] public cashAssets; // An array of all cash assets to iterate across the cashAssetsAllocations mapping
     // Mapping of assets to percentages of USD value to allocate to each, percentages must sum to 100 * (10 ** 6)
     mapping(address => uint256) public cashAssetsAllocations;
     // Mapping of assets to most recent prices in USDT
     mapping(address => uint256) public cashAssetsPrices;
     uint256 public lastCashBalanceUpdateTimestamp;
     uint256 public lastCashAssetsPricesUpdateBlockNumber;
-    mapping(address => address[]) private liquidatePaths;
     mapping(address => address[]) private purchasePaths;
     mapping(address => uint256) private targetUSDValues;
     mapping(address => uint256) private currentUSDValues;
-    mapping(address => uint256) private assetLiquidationAmounts; // Amount of each token to sell, denominated in token
     mapping(address => uint256) private assetPurchaseAmounts; // Amount of each token to buy, denominated in token
-    address[] liquidationsToPerform;
     address[] purchasesToPerform;
     // Amount of WAVAX reserved for making investment purchases. This amount of WAVAX cannot be used to purchase
     // other cash holdings
     uint256 public investmentReservedWAVAXAmount;
 
     // contracts
-    address private wavaxAddress;
-    IWAVAX private wavax;
-    IJoeRouter02 private joeRouter;
-    ISwapRouter private swapRouter;
-    IMaldenFeuersteinERC20 private coin;
+    // some of the contracts are in the Redeemable parent
     IValueHelpers private valueHelpers;
     IInvestmentManager private investmentManager;
     IERC20 private usdt;
@@ -77,8 +67,6 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     uint256 private newBlockEveryNMicroseconds;
     uint256 public totalUSDValue;
     uint256 private minimumSwapValue;
-    uint256 private priceImpactTolerance; // price impact micro percentage
-    uint256 private slippageTolerance; // swap slippage tolerance in micro percentage
     uint256 private minimumAllocationDifference; // minimum percentage allocation must differ to queue a swap for it
     uint256 private constant ONE_HUNDRED_PERCENT = 100 * (10**6);
 
@@ -96,6 +84,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         minimumSwapValue = 50 * (10 ** 6); // $50
         slippageTolerance = 5 * (10 ** 6) / 10; // 0.5%
         investmentReservedWAVAXAmount = 0;
+        managerChoice = ManagerChoice.CashManager;
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
@@ -127,24 +116,19 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         _unpause();
     }
 
-    // Convenience function
-    function numberOfCashAssets() external view returns(uint length) {
-        return cashAssets.length;
-    }
-
     // Owner tells the contract to change how it holds "cash" prior to investing it
-    // This liquidates any holdings that were previously in the cashAssets and were removed
+    // This liquidates any holdings that were previously in the assets and were removed
     // TODO: Test calling this with very long list of assets. How large does it need to be to hit the gas limit due to these
     //    for loops over dynamic arrays?
-    function setCashAllocations(address[] calldata assets,
+    function setCashAllocations(address[] calldata localAssets,
                                 uint256[] calldata percentages,
                                 address[][] calldata passedLiquidatePaths,
                                 address[][] calldata passedPurchasePaths) external onlyOwner whenNotPaused {
-        require(assets.length < 50, "Can not have more than 50 cash assets."); // This prevents issues with loops and gas
-        require(assets.length == percentages.length, "Assets and percentages arrays must be the same length.");
+        require(localAssets.length < 50, "Can not have more than 50 cash assets."); // This prevents issues with loops and gas
+        require(localAssets.length == percentages.length, "Assets and percentages arrays must be the same length.");
         // TODO: I need these to be uncommented when I get this contract within the size limit
-        require(passedLiquidatePaths.length == assets.length, "Must have a liquidatePath for each asset.");
-        require(passedPurchasePaths.length == assets.length, "Must have a purchasePath for each asset.");
+        require(passedLiquidatePaths.length == localAssets.length, "Must have a liquidatePath for each asset.");
+        require(passedPurchasePaths.length == localAssets.length, "Must have a purchasePath for each asset.");
         uint sum = 0;
         for(uint i = 0; i < percentages.length; i++) {
             require(percentages[i] > 0, "Can't assign a cash asset to a portfolio weight of 0%.");
@@ -152,15 +136,15 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         }
         require(sum == (100 * (10 ** 6)), "The percentages must sum to exactly 100 * (10 ** 6).");
 
-        address[] memory oldAssets = cashAssets;
-        delete cashAssets; // reset
-        assert(cashAssets.length == 0); // make sure the array is starting over
+        address[] memory oldAssets = assets;
+        delete assets; // reset
+        assert(assets.length == 0); // make sure the array is starting over
         for (uint i = 0; i < oldAssets.length; i++) { // reset the mapping
             cashAssetsAllocations[oldAssets[i]] = 0;
         }
-        for (uint i = 0; i < assets.length; i++) { // assign the new values
-            address asset = assets[i];
-            cashAssets.push(asset);
+        for (uint i = 0; i < localAssets.length; i++) { // assign the new values
+            address asset = localAssets[i];
+            assets.push(asset);
             cashAssetsAllocations[asset] = percentages[i];
             liquidatePaths[asset] = passedLiquidatePaths[i];
             // All purchases start in WAVAX currently
@@ -190,7 +174,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                                                                                                     priceImpactTolerance);
                         // If not fully liquidating it, then keep it in the asset list to process further liquidations
                         if (amountToSwap != desiredAmountToSwap) {
-                            cashAssets.push(asset);
+                            assets.push(asset);
                         }
                         IERC20 fromToken = IERC20(path[0]);
                         bool success = fromToken.approve(address(joeRouter), amountToSwap);
@@ -225,8 +209,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         cashAssetsPrices[address(wavax)] = wavaxInUSDTQuote.price;
 
         uint8 wavax_decimals = wavax.decimals();
-        for (uint32 i = 0; i < cashAssets.length; i++) {
-            address asset = cashAssets[i];
+        for (uint32 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
             if (asset == address(usdt)) {
                 cashAssetsPrices[asset] = 10 ** usdt.decimals(); // USDT:USDT is 1:1 definitionally
             } else if (asset != address(wavax)) { // WAVAX price was already updated
@@ -258,8 +242,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(investmentReservedWAVAXAmount == 0,
                 "Cannot update cash asset balances while there are pending investment purchases.");
         uint256 localTotalUSDValue = 0;
-        for (uint16 i = 0; i < cashAssets.length; i++) {
-            address asset = cashAssets[i];
+        for (uint16 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
             IERC20 token = IERC20(asset);
             uint256 tokenBalance = token.balanceOf(address(this));
             require(cashAssetsPrices[asset] != 0, "Asset is missing from the cashAssetsPrices.");
@@ -280,13 +264,13 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         delete purchasesToPerform;
         assert(liquidationsToPerform.length == 0);
         assert(purchasesToPerform.length == 0);
-        for (uint16 i = 0; i < cashAssets.length; i++) {
-            address asset = cashAssets[i];
+        for (uint16 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
             // Calculate the target USD value for each cash asset
             uint256 targetPercentage = cashAssetsAllocations[asset];
             uint256 targetUSDValue = Library.percentageOf(localTotalUSDValue, targetPercentage);
             // Set the final one to the remaining total to account for integer division rounding errors
-            if (i == (cashAssets.length - 1)) {
+            if (i == (assets.length - 1)) {
                 targetUSDValue = localTotalUSDValue - targetUSDValueSum;
             }
             targetUSDValueSum += targetUSDValue;
@@ -330,50 +314,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         lastCashBalanceUpdateTimestamp = block.timestamp;
     }
 
-    function numLiquidationsToProcess() external view returns (uint256) {
-        return liquidationsToPerform.length;
-    }
-
     function numPurhcasesToProcess() external view returns (uint256) {
         return purchasesToPerform.length;
-    }
-
-    // Execute a swap to complete a previously stored liquidation
-    // This needs to be callable even when paused so that users can redeem their tokens
-    function processLiquidation() external { // Anyone can call this
-        require(liquidationsToPerform.length > 0,
-                "There are no liquidations queued from a call to updateLiquidationsAndPurchases().");
-        address asset = liquidationsToPerform[liquidationsToPerform.length - 1];
-        require(asset != address(wavax),
-                "WAVAX is the asset of purchasing power, it is liquidated merely by purchasing other assets.");
-        require(liquidatePaths[asset].length > 0, "Must have a valid lidquidation path to be able to perform a swap.");
-
-        // Set state before external calls
-        emit Liquidated(asset);
-        liquidationsToPerform.pop();
-
-        address[] memory path = liquidatePaths[asset];
-        uint256 desiredAmountToSwap = assetLiquidationAmounts[asset];
-        require(desiredAmountToSwap > 0, "Got a 0 desiredAmountToSwap.");
-        uint256 amountToSwap;
-        uint256 expectedReceived;
-        (amountToSwap, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(path,
-                                                                                    desiredAmountToSwap,
-                                                                                    priceImpactTolerance);
-        IERC20 fromToken = IERC20(path[0]);
-        require(fromToken.balanceOf(address(this)) >= amountToSwap, "Cannot approve swapping more than on hand.");
-        bool success = fromToken.approve(address(joeRouter), amountToSwap);
-        require(success, "token approval failed.");
-
-        // Do the swap
-        uint256 minimumReceived = Library.subtractPercentage(expectedReceived, slippageTolerance);
-        uint256[] memory amounts = joeRouter.swapExactTokensForTokens(amountToSwap,
-                                                                      minimumReceived,
-                                                                      path,
-                                                                      address(this),
-                                                                      block.timestamp);
-        require(amounts[0] == amountToSwap, "Didn't sell the amount of tokens inserted.");
-        require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected.");
     }
 
     // Execute a swap to complete a previously stored purchase
@@ -428,68 +370,6 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(amounts[amounts.length - 1] >= minimumReceived, "Didn't get out as much as expected.");
     }
 
-    // Take the amount of WAVAX needed and the current total WAVAX on hand
-    // Authorize liquidations to get the total WAVAX on hand up amountNeeded
-    // This must be callable when paused so that users can redeem their tokens
-    // Don't call this if there is already more WAVAX on hand than amountNeeded, it will cause an arithmetic error
-    function prepareDryPowder(uint256 amountNeeded, uint256 wavaxOnHand) internal { // only be called by this contract
-        // iterate the cash assets, authorizing liquidations until we have enough WAVAX
-        // TODO: This iterates through the cashAssets randomly,
-        // but I might actually want to do it in order of biggest to smallest?
-        for (uint256 i = 0; i < cashAssets.length; i++) {
-            address liquidateAsset = cashAssets[i];
-            if (liquidateAsset == wavaxAddress) { // WAVAX was already included above and doesn't need to be swapped
-                continue;
-            }
-            IERC20 liquidateToken = IERC20(liquidateAsset);
-            uint256 liquidateTokenOnHand = liquidateToken.balanceOf(address(this));
-            // TODO: This doesn't support multi-hop paths
-            Library.PriceQuote memory priceQuote = swapRouter.getPriceQuote(liquidateAsset, wavaxAddress);
-            // Sell only a portion of this one
-            uint256 liquidateTokenValueInWAVAX = Library.priceMulAmount(liquidateTokenOnHand,
-                                                                        liquidateToken.decimals(),
-                                                                        priceQuote.price);
-            // Add 1% to make sure we swap enough
-            uint256 buyAmountWithCushion = Library.addPercentage(amountNeeded, (1 * (10 ** 6)));
-            if ((liquidateTokenValueInWAVAX + wavaxOnHand) >= buyAmountWithCushion) {
-                uint256 differenceNeeded = buyAmountWithCushion - wavaxOnHand;
-                uint256 percentLiquidationNeeded = Library.valueIsWhatPercentOf(differenceNeeded, liquidateTokenValueInWAVAX);
-                assert(percentLiquidationNeeded < (100 * (10 ** 6)));
-                uint256 amountToLiquidate = Library.percentageOf(liquidateTokenOnHand, percentLiquidationNeeded);
-                assetLiquidationAmounts[liquidateAsset] = amountToLiquidate;
-                if (amountToLiquidate > 0) {
-                    liquidationsToPerform.push(liquidateAsset);
-                    wavaxOnHand += differenceNeeded;
-                }
-                break; // This one is enough, don't need to continue iterating
-            } else { // it's not enough, so add all of it and go to the next
-                assetLiquidationAmounts[liquidateAsset] = liquidateTokenOnHand;
-                if (liquidateTokenOnHand > 0) {
-                    liquidationsToPerform.push(liquidateAsset);
-                    wavaxOnHand += liquidateTokenValueInWAVAX;
-                }
-            }
-        }
-    }
-
-    // Call this before processing a redemption to authorize any liquidations necessary to get enough WAVAX out
-    // This needs to be callable when paused so that users can redeem their tokens
-    function prepareDryPowderForRedemption() external {
-        uint256 maldenCoinAmount;
-        uint256 wavaxAmount;
-        (maldenCoinAmount, wavaxAmount, ) = coin.getAuthorizedRedemptionAmounts(msg.sender);
-        require(maldenCoinAmount > 0, "Not authorized to liquidate for redemption.");
-        require(wavaxAmount > 0, "Not authorized to liquidate for redemption.");
-        uint256 wavaxOnHand = wavax.balanceOf(address(this));
-        if (wavaxOnHand < wavaxAmount) { // Prepare additional dry powder only if needed
-            prepareDryPowder(wavaxAmount, wavaxOnHand);
-        }
-        // Authorize the coin to take the WAVAX from this contract
-        // let the Coin take the WAVAX to give to the user
-        bool success = wavax.approve(address(coin), wavaxAmount);
-        require(success, "wavax approval to the MALD coin failed.");
-    }
-
     // Call this before InvestmentManager.processBuy to prepare liquidations to have enough WAVAX to make an investment
     function prepareDryPowderForInvestmentBuy(address asset) external whenNotPaused { // anyone can call this
         bool exists;
@@ -507,7 +387,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(!reservedForBuy, "asset cannot already be reserved for this purchase.");
         require(exists, "This asset isn't in the investment manager.");
         require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
-        require(block.timestamp < buyDeterminationTimestamp + (24 * 60 * 60), "A buy determination made over a day ago is invalid");
+        require(block.timestamp <= buyDeterminationTimestamp + (24 * 60 * 60), "A buy determination made over a day ago is invalid");
         require(buyAmount <= valueHelpers.cashManagerTotalValueInWAVAX(),
                 "Cannot buy with more WAVAX than have on hand.");
         investmentReservedWAVAXAmount += buyAmount;

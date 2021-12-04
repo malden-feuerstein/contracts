@@ -155,21 +155,30 @@ describe('Test MaldenFeuersteinERC20', function () {
         await coin.connect(user).requestRedeem(userInvestmentAmount);
         await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
         await processAllLiquidations(contracts.cashManager, user);
-        // TODO: Uncomment this:
-        //await contracts.investmentManager.connect(user).prepareDryPowderForRedemption();
+        // redeem() needs to pull not only from the cash manager, but also from the investment manager
+        await contracts.investmentManager.connect(user).prepareDryPowderForRedemption();
+        await processAllLiquidations(contracts.investmentManager, user);
         expect(await tokens.dai.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.usdc.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.usdt.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.weth.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.wbtc.connect(user).balanceOf(user.address)).to.be.equal(0);
         expect(await tokens.ampl.connect(user).balanceOf(user.address)).to.be.equal(0);
-        const cashManagerBeforeBalance = await wavax.connect(user).balanceOf(contracts.cashManager.address);
-        console.log("cashManager WAVAX before redeem: ", cashManagerBeforeBalance.toString());
-        // FIXME: redeem() needs to pull not only from the cash manager, but also from the investment manager
-        //await coin.connect(user).redeem();
-        //const afterBalance = await wavax.connect(user).balanceOf(user.address);
-        //console.log("user WAVAX after redeem: ", afterBalance.toString());
-        //await expect(await wavax.connect(user).balanceOf(user.address)).to.equal(userInvestmentAmount);
+        expect(await wavax.connect(user).balanceOf(contracts.cashManager.address)).to.be.gt(0);
+        expect(await wavax.connect(user).balanceOf(contracts.investmentManager.address)).to.be.gt(0);
+        const userAVAXBefore = await coin.provider.getBalance(user.address);
+        // https://github.com/fvictorio/hardhat-examples/blob/master/reading-events/scripts/getEventsFromTx.js
+        let tx = await coin.connect(user).redeem();
+        let receipt = await tx.wait()
+        let redeemedAmount = receipt.events[0].args[0];
+        expect(await wavax.connect(user).balanceOf(contracts.cashManager.address)).to.be.equal(0);
+        expect(await wavax.connect(user).balanceOf(contracts.investmentManager.address)).to.be.equal(0);
+        expect(await contracts.valueHelpers.connect(user).investmentManagerTotalValueInWAVAX()).to.be.equal(0);
+        expect(await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).to.be.equal(0);
+        const userAVAXAfter = await coin.provider.getBalance(user.address);
+        // This assumes a max transaction cost of 1 AVAX
+        expect(userAVAXAfter).to.be.gt(userAVAXBefore.add(redeemedAmount).sub(ethers.utils.parseUnits("100", "ether")));
+        expect(await wavax.connect(user).balanceOf(user.address)).to.be.equal(0);
     })
 
 });

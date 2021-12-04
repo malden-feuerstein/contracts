@@ -82,9 +82,9 @@ export async function setCashManagerAllocations(cashManager, owner, user, invest
                                                         allocations,
                                                         liquidationPaths,
                                                         localPurchasePaths);
-    expect(await cashManager.connect(user).numberOfCashAssets()).to.equal(6);
-    expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(7);
-    expect(await cashManager.connect(user).numberOfCashAssets()).to.not.equal(5);
+    expect(await cashManager.connect(user).numAssets()).to.equal(6);
+    expect(await cashManager.connect(user).numAssets()).to.not.equal(7);
+    expect(await cashManager.connect(user).numAssets()).to.not.equal(5);
     const wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
     await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(investmentAmount);
     return {assets, allocations}
