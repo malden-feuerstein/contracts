@@ -217,7 +217,7 @@ describe('Test InvestmentManager', function () {
         var authorizedBuyAmount = receipt.events[0].args[1];
 
         await expect(contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.wavax)).to.be.
-            revertedWith("This asset isn't in the investment manager.");
+            revertedWith("CashManager: exists");
         await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.joe);
         await expect(contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.joe)).to.be.
             revertedWith("asset cannot already be reserved for this purchase.");
@@ -287,7 +287,7 @@ describe('Test InvestmentManager', function () {
         await expect(await tokens.wavax.connect(user).balanceOf(contracts.cashManager.address)).to.not.equal(0);
 
         await expect(contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.wavax)).to.be.
-            revertedWith("This asset isn't in the investment manager.");
+            revertedWith("CashManager: exists");
         await contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.qi);
         await expect(contracts.cashManager.connect(user).prepareDryPowderForInvestmentBuy(addresses.qi)).to.be.
             revertedWith("asset cannot already be reserved for this purchase.");

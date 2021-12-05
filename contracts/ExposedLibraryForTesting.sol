@@ -43,4 +43,8 @@ library ExposedLibraryForTesting {
     function kellyFraction(uint256 confidence, uint256 lossPercent, uint256 gainPercent) external pure returns (uint256) {
         return Library.kellyFraction(confidence, lossPercent, gainPercent);
     }
+
+    function PERCENTAGE_DECIMALS() external pure returns (uint8) {
+        return Library.PERCENTAGE_DECIMALS;
+    }
 }

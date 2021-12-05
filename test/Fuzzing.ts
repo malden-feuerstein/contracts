@@ -255,6 +255,7 @@ describe('Fuzz Testing', function () {
     let wavax;
     let router;
     let contracts;
+    let PERCENTAGE_DECIMALS;
 
     before(async function () {
         const user_addresses = await ethers.getSigners();
@@ -263,12 +264,18 @@ describe('Fuzz Testing', function () {
 
         dai = await ethers.getContractAt("IERC20", addresses.dai);
         wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
+
+        const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
+        const library = await Library.deploy();
+        await library.deployed();
+        PERCENTAGE_DECIMALS = await library.connect(user).PERCENTAGE_DECIMALS();
     });
 
     beforeEach(async function () {
         contracts = await deployAll();
         coin = contracts.coin;
         cashManager = contracts.cashManager;
+
     });
 
     it("Should call random functions and end up in sane state", async function() {
@@ -375,7 +382,7 @@ describe('Fuzz Testing', function () {
         const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
         const library = await Library.deploy();
         await library.deployed();
-        const epsilonAVAX = await library.percentageOf(totalAVAXInvestments, BigNumber.from((0.6 * (10 ** 6))));
+        const epsilonAVAX = await library.percentageOf(totalAVAXInvestments, BigNumber.from((0.6 * (10 ** PERCENTAGE_DECIMALS))));
         console.log("+/- 0.6% is %s AVAX", epsilonAVAX);
         // The total WAVAX value of the two contracts must be within 1 AVAX of the total AVAX invested
         testBigNumberIsWithinInclusiveBounds(sumAVAXValue,

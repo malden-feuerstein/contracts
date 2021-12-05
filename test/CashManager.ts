@@ -34,6 +34,8 @@ describe('Test CashManager', function () {
     let dai;
     let wavax;
     let contracts;
+    let PERCENTAGE_DECIMALS;
+    let PERCENTAGE_MULTIPLIER;
 
     before(async function () {
         const user_addresses = await ethers.getSigners();
@@ -42,6 +44,12 @@ describe('Test CashManager', function () {
 
         dai = await ethers.getContractAt("IERC20", addresses.dai);
         wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
+
+        const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
+        const library = await Library.deploy();
+        await library.deployed();
+        PERCENTAGE_DECIMALS = await library.connect(user).PERCENTAGE_DECIMALS();
+        PERCENTAGE_MULTIPLIER = BigNumber.from("10").pow(PERCENTAGE_DECIMALS);
     });
 
     beforeEach(async function () {
@@ -60,7 +68,7 @@ describe('Test CashManager', function () {
         await expect(cashManager.connect(user).assets(0)).to.be.revertedWith("Transaction reverted without a reason string");
 
         var testAssets = [];
-        var testAllocations = [100 * (10 ** 6)];
+        var testAllocations = [BigNumber.from(100).mul(BigNumber.from(10).pow(PERCENTAGE_DECIMALS))];
         var testLiquidationPaths = [];
         var testPurchasePaths = [];
         await expect(cashManager.connect(user).setCashAllocations(testAssets,
@@ -95,7 +103,7 @@ describe('Test CashManager', function () {
                       addresses.usdt,
                       addresses.usdc,
                       addresses.dai];
-        testAllocations = [10, 10, 10, 10, 20, 20, 20].map(x => x * (10 ** 6));
+        testAllocations = [10, 10, 10, 10, 20, 20, 20].map(x => BigNumber.from(x).mul(BigNumber.from(10).pow(PERCENTAGE_DECIMALS)));
         testLiquidationPaths = [liquidatePaths.wavax,
                                 liquidatePaths.wbtc,
                                 liquidatePaths.weth,
@@ -124,7 +132,7 @@ describe('Test CashManager', function () {
         await testTokenAmountWithinBounds(addresses.wavax, user, cashManager.address, "10");
 
         testAssets = [addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];
-        testAllocations = [20, 10, 23, 24, 23].map(x => x * (10 ** 6));
+        testAllocations = [20, 10, 23, 24, 23].map(x => BigNumber.from(x).mul(PERCENTAGE_MULTIPLIER));
         testLiquidationPaths = [liquidatePaths.weth,
                                 liquidatePaths.ampl,
                                 liquidatePaths.usdt,
@@ -199,7 +207,7 @@ describe('Test CashManager', function () {
 
         // remove wbtc, add ampl, and reduce dai from 15% to 10%
         const testAssets = [addresses.wavax, addresses.weth, addresses.ampl, addresses.usdt, addresses.usdc, addresses.dai];
-        const testAllocations = [20, 15, 20, 20, 15, 10].map(x => x * (10 ** 6));
+        const testAllocations = [20, 15, 20, 20, 15, 10].map(x => BigNumber.from(x).mul(PERCENTAGE_MULTIPLIER));
         const testLiquidationPaths = [liquidatePaths.wavax,
                                 liquidatePaths.weth,
                                 liquidatePaths.ampl,
@@ -241,9 +249,15 @@ describe('Test CashManager', function () {
         const finalWAVAXPercent = await contracts.valueHelpers.connect(user).assetPercentageOfCashManager(wavax.address);
         const finalDAIPercent = await contracts.valueHelpers.connect(user).assetPercentageOfCashManager(dai.address);
         const finalAMPLPercent = await contracts.valueHelpers.connect(user).assetPercentageOfCashManager(addresses.ampl);
-        testBigNumberIsWithinInclusiveBounds(finalDAIPercent, ethers.BigNumber.from("9000000"), ethers.BigNumber.from("11000000"));
-        testBigNumberIsWithinInclusiveBounds(finalWAVAXPercent, ethers.BigNumber.from("19000000"), ethers.BigNumber.from("21000000"));
-        testBigNumberIsWithinInclusiveBounds(finalAMPLPercent, ethers.BigNumber.from("19000000"), ethers.BigNumber.from("21000000"));
+        testBigNumberIsWithinInclusiveBounds(finalDAIPercent,
+                                             BigNumber.from("9").mul(PERCENTAGE_MULTIPLIER),
+                                             BigNumber.from("11").mul(PERCENTAGE_MULTIPLIER));
+        testBigNumberIsWithinInclusiveBounds(finalWAVAXPercent,
+                                             BigNumber.from("19").mul(PERCENTAGE_MULTIPLIER),
+                                             BigNumber.from("21").mul(PERCENTAGE_MULTIPLIER));
+        testBigNumberIsWithinInclusiveBounds(finalAMPLPercent,
+                                             BigNumber.from("19").mul(PERCENTAGE_MULTIPLIER),
+                                             BigNumber.from("21").mul(PERCENTAGE_MULTIPLIER));
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
         await balanceCashHoldingsTest(contracts, user, testAssets, testAllocations);
     })

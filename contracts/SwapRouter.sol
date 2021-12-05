@@ -60,7 +60,7 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
 
     // Check if TraderJoe has sufficient liquidity
     // asset1 is the starting token and asset2 is the destination token
-    // Returns the price impact in micro precent. To turn it into a percentage, divide by 10**6
+    // Returns the price impact in micro precent. To turn it into a percentage, divide by 10**Library.PERCENTAGE_DECIMALS
     function priceImpact(address asset0,
                          address asset1,
                          uint256 asset0Amount) public view returns (uint256, uint256) {
@@ -79,7 +79,7 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
         assert(reserve1 > newReserve1);
         uint256 receivedAsset1 = reserve1 - newReserve1;
         uint256 newPrice = (asset0Amount * (10 ** token1.decimals())) / receivedAsset1;
-        uint256 thePriceImpact = ((newPrice - price) * (10 ** 6) * 100) / price;
+        uint256 thePriceImpact = ((newPrice - price) * Library.ONE_HUNDRED_PERCENT) / price;
         return (thePriceImpact, receivedAsset1);
     }
 

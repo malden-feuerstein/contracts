@@ -1,4 +1,4 @@
-import { 
+import {
   Contract, 
   ContractFactory,
   BigNumber
@@ -6,6 +6,13 @@ import {
 import { ethers, upgrades } from "hardhat"
 import { expect } from "chai";
 import { addresses, liquidatePaths, purchasePaths } from "./addresses";
+
+// This should be set to the value in Library.sol
+const PERCENTAGE_DECIMALS = 6;
+
+function multiplyByDecimals(array, numDecimals) {
+    return array.map(x => BigNumber.from(x).pow(numDecimals));
+}
 
 async function processAllLiquidations(cashManager, user) {
     const numLiquidations = await cashManager.connect(user).numLiquidationsToProcess();
@@ -34,7 +41,7 @@ async function balanceCashHoldingsTest(contracts, user, expectedAssets, expected
     await cashManager.connect(user).updateLiquidationsAndPurchases();
     await processAllLiquidations(cashManager, user);
     await processAllPurchases(cashManager, user);
-    const one_percent = BigNumber.from("1000000");
+    const one_percent = BigNumber.from("1").mul(10 ** PERCENTAGE_DECIMALS); // 6 decimal places to a percentage
     for (let i = 0; i < expectedAssets.length; i++) {
         const asset = expectedAssets[i];
         const percentage = expectedPercentages[i];
@@ -65,7 +72,7 @@ export async function setCashManagerAllocations(cashManager, owner, user, invest
                   addresses.usdt,
                   addresses.usdc,
                   addresses.dai];
-    var allocations = [20, 15, 15, 20, 15, 15].map(x => x * (10 ** 6));
+    var allocations = [20, 15, 15, 20, 15, 15].map(x => x * (10 ** PERCENTAGE_DECIMALS));
     var liquidationPaths = [liquidatePaths.wavax,
                             liquidatePaths.wbtc,
                             liquidatePaths.weth,
@@ -106,7 +113,7 @@ export async function makeCashManagerAllocations(contracts, assets, allocations,
             "There are no liquidations queued from a call to updateLiquidationsAndPurchases().");
     }
     await processAllPurchases(cashManager, user);
-    const one_percent = BigNumber.from("1000000");
+    const one_percent = BigNumber.from("1").mul(10 ** PERCENTAGE_DECIMALS);
     for (let i = 0; i < assets.length; i++) {
         const asset = assets[i];
         const percentage = allocations[i];

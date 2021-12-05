@@ -14,7 +14,9 @@ library Library {
     }
 
     // constant
-    uint8 public constant PERCENTAGE_DECIMALS = 6;
+    // When changing this constant, also change the hard-coded values in cash-manager.ts
+    uint8 public constant PERCENTAGE_DECIMALS = 6; // At least as much precision as AVAX
+    uint256 public constant ONE_HUNDRED_PERCENT = 100 * (10 ** PERCENTAGE_DECIMALS);
 
     // Use this to get the decimals right any time you're multiplying an amount of a token by the price of token
     // This is typically for changing an amount of a token into its USD value

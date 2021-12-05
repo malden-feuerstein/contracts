@@ -37,7 +37,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     event DecreasedCashAsset(address);
     event Purchased(address); // emitted when an asset is purchased to reach target cash holding percentage
 
-    // Mapping of assets to percentages of USD value to allocate to each, percentages must sum to 100 * (10 ** 6)
+    // Mapping of assets to percentages of USD value to allocate to each, percentages must sum to 100%
     mapping(address => uint256) public cashAssetsAllocations;
     // Mapping of assets to most recent prices in USDT
     mapping(address => uint256) public cashAssetsPrices;
@@ -68,7 +68,6 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
     uint256 public totalUSDValue;
     uint256 private minimumSwapValue;
     uint256 private minimumAllocationDifference; // minimum percentage allocation must differ to queue a swap for it
-    uint256 private constant ONE_HUNDRED_PERCENT = 100 * (10**6);
 
     function initialize() external virtual initializer {
         __Ownable_init();
@@ -134,7 +133,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
             require(percentages[i] > 0, "Can't assign a cash asset to a portfolio weight of 0%.");
             sum += percentages[i];
         }
-        require(sum == (100 * (10 ** 6)), "The percentages must sum to exactly 100 * (10 ** 6).");
+        require(sum == Library.ONE_HUNDRED_PERCENT, "The percentages must sum to 100%.");
 
         address[] memory oldAssets = assets;
         delete assets; // reset
@@ -279,7 +278,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
             uint256 tokenBalance = token.balanceOf(address(this));
             uint256 currentUSDValue = currentUSDValues[asset];
             uint256 currentPercentage = Library.valueIsWhatPercentOf(currentUSDValue, localTotalUSDValue);
-            assert(currentPercentage <= ONE_HUNDRED_PERCENT);
+            assert(currentPercentage <= Library.ONE_HUNDRED_PERCENT);
             // WAVAX is the asset of purchasing power, so when we have more than we want it will be consumed by purchases
             // When we have less than we want, it will be produced by liquidations
             if (address(asset) == address(wavax)) {
@@ -293,8 +292,8 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                     continue;
                 }
                 // currentTokenBalance - desiredTokenBalance
-                uint256 assetLiquidationAmount = tokenBalance - ((tokenBalance * ONE_HUNDRED_PERCENT * targetPercentage) /
-                                                                   (currentPercentage * ONE_HUNDRED_PERCENT));
+                uint256 assetLiquidationAmount = tokenBalance - ((tokenBalance * Library.ONE_HUNDRED_PERCENT * targetPercentage) /
+                                                                   (currentPercentage * Library.ONE_HUNDRED_PERCENT));
                 assetLiquidationAmounts[asset] = assetLiquidationAmount;
                 if (assetLiquidationAmount > 0) {
                     liquidationsToPerform.push(asset);
@@ -388,7 +387,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
          reservedForBuy) = investmentManager.investmentAssetsData(asset);
         // Prevent it from being reserved twice
         require(!reservedForBuy, "asset cannot already be reserved for this purchase.");
-        require(exists, "This asset isn't in the investment manager.");
+        require(exists, "CashManager: exists"); // This asset isn't in the investment manager.
         require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
         require(block.timestamp <= buyDeterminationTimestamp + (24 * 60 * 60), "A buy determination made over a day ago is invalid");
         require(buyAmount <= valueHelpers.cashManagerTotalValueInWAVAX(),

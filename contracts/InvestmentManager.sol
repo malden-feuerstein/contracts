@@ -64,13 +64,13 @@ contract InvestmentManager is OwnableUpgradeable,
         __AccessControl_init();
         __Pausable_init();
         newBlockEveryNMicroseconds = 2000;
-        priceImpactTolerance = 1 * (10 ** 6); // This is one micro percent, or 1 percent with 6 decimals
-        minimumSwapValue = 50 * (10 ** 6); // Don't bother swapping less than $50
+        priceImpactTolerance = 1 * (10 ** Library.PERCENTAGE_DECIMALS); // This is one micro percent, or 1 percent with 6 decimals
+        minimumSwapValue = 50 * (10 ** 6); // Don't bother swapping less than $50, this is USDT decimals
         priceUpdateInterval = 24 * 60 * 60 * 7; // one week
         numBuysAuthorized = 0;
         nWeeksOfScorn = 4;
-        slippageTolerance = 5 * (10 ** 6) / 10; // 0.5%
-        marginOfSafety = 25 * (10 ** 6);
+        slippageTolerance = (5 * (10 ** Library.PERCENTAGE_DECIMALS)) / 10; // 0.5%
+        marginOfSafety = 25 * (10 ** Library.PERCENTAGE_DECIMALS); // 25%
         managerChoice = ManagerChoice.InvestmentManager;
     }
 
@@ -118,7 +118,7 @@ contract InvestmentManager is OwnableUpgradeable,
             require(purchasePath[0] == wavaxAddress);
         }
         require(confidence > 0, "Cannot have 0 confidence.");
-        require(confidence <= 100 * (10 ** 6), "Cannot be more than 100% confident.");
+        require(confidence <= Library.ONE_HUNDRED_PERCENT, "Cannot be more than 100% confident.");
         require(intrinsicValue > 0, "Cannot have 0 intrinsicValue.");
         if (investmentAssetsData[asset].exists) { // Already there, update values
             assert(investmentAssetsData[asset].assetAddress == asset);
@@ -172,7 +172,7 @@ contract InvestmentManager is OwnableUpgradeable,
         Library.PriceQuote memory currentPrice = swapRouter.getPriceQuote(asset, address(usdt));
         // Sell when an asset is 50% above the intrinsicValue
         if (currentPrice.price > Library.addPercentage(investmentAssetsData[asset].intrinsicValue,
-                                                 50 * (10 ** 6))) { // 50% more than intrinsicValue
+                                                 50 * (10 ** Library.PERCENTAGE_DECIMALS))) { // 50% more than intrinsicValue
             // Sell all of it. Is this always what I want this to do here? What about partial sells?
             investmentAssetsData[asset].sellAmount = IERC20(asset).balanceOf(address(this));
             investmentAssetsData[asset].buyAmount = 0; // reset value
@@ -206,10 +206,10 @@ contract InvestmentManager is OwnableUpgradeable,
                                                                     currentPrice.price);
             // TODO: The expected loss should probably be a paramter on the individual asset
             uint256 kellyFraction = Library.kellyFraction(investmentAssetsData[asset].confidence,
-                                                          (80 * (10 ** 6)), // lose 80%
+                                                          (80 * (10 ** Library.PERCENTAGE_DECIMALS)), // lose 80%
                                                           percentGainExpected); // Double in win scenario
             kellyFraction /= 2; // Take half kelly bet
-            kellyFraction = Math.min(kellyFraction, 100 * (10 ** 6)); // Can't take more than 100% of available funds
+            kellyFraction = Math.min(kellyFraction, Library.ONE_HUNDRED_PERCENT); // Can't take more than 100% of available funds
             // FIXME: The betSize should have subtracted the value of the current holdings of the asset
             // FIXME: betSize should be >0 only if the current holding is more than 1% off from the target
             uint256 betSize = Library.percentageOf(totalCashValue, kellyFraction); // half kelly bet in WAVAX
