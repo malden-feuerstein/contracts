@@ -319,9 +319,10 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
 
     // Execute a swap to complete a previously stored purchase
     function processPurchase() external whenNotPaused { // Anyone can call this
-        require(liquidationsToPerform.length == 0,
-                "Must complete all liquidations before performing purchases so that capital is on hand.");
-        require(purchasesToPerform.length > 0, "There are no purchases queued from a call to updateLiquidationsAndPurchases().");
+        // Must complete all liquidations before performing purchases so that capital is on hand.
+        require(liquidationsToPerform.length == 0, "CashManager: Incomplete liquidations");
+        // There are no purchases queued from a call to updateLiquidationsAndPurchases().
+        require(purchasesToPerform.length > 0, "CashManager: Nothing queued");
         address asset = purchasesToPerform[purchasesToPerform.length - 1];
         require(purchasePaths[asset].length > 0, "Must have a valid purchase path to be able to perform a swap.");
         require(purchasePaths[asset][0] == wavaxAddress, "All purchase paths must start with WAVAX.");
@@ -353,8 +354,9 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         // FIXME: The fuzzer is getting into situations where investmentReservedWAVAXAmount > wavax.balanceOf(this)
         // This is possible when multiple buy determinations are made before the previous buy determinations have been
         // processed.
-        require(amountToSwap <= (wavax.balanceOf(address(this)) - investmentReservedWAVAXAmount),
-               "This cash asset purchase would require using WAVAX that is reserved for an investment purchase.");
+        // This cash asset purchase would require using WAVAX that is reserved for an investment purchase.
+        require(amountToSwap <= (wavax.balanceOf(address(this)) - investmentReservedWAVAXAmount), "CashManager: reserved.");
+               
         bool success = fromToken.approve(address(joeRouter), amountToSwap);
         require(success, "token approval failed.");
 
@@ -389,6 +391,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(!reservedForBuy, "asset cannot already be reserved for this purchase.");
         require(exists, "CashManager: exists"); // This asset isn't in the investment manager.
         require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
+        console.log("%s, %s", block.timestamp, buyDeterminationTimestamp + (24 * 60 * 60));
         require(block.timestamp <= buyDeterminationTimestamp + (24 * 60 * 60), "A buy determination made over a day ago is invalid");
         require(buyAmount <= valueHelpers.cashManagerTotalValueInWAVAX(),
                 "Cannot buy with more WAVAX than have on hand.");

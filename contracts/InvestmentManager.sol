@@ -217,8 +217,9 @@ contract InvestmentManager is OwnableUpgradeable,
             uint256 bankroll = totalCashValue + valueHelpers.investmentManagerTotalValueInWAVAX();
             uint256 currentValue = valueHelpers.investmentManagerAssetValueInWAVAX(asset);
             uint256 currentFraction = Library.percentageOf(currentValue, bankroll);
-            // Only proceed if this asset is more than 1% less than the determined kellyl % of the bankroll
-            if (currentFraction < (kellyFraction - (10 ** Library.PERCENTAGE_DECIMALS))) {
+            // Only proceed if this asset is more than 1% less than the determined kelly % of the bankroll
+            if ((kellyFraction > Library.ONE_PERCENT) && 
+                (currentFraction < (kellyFraction - Library.ONE_PERCENT))) {
                 // half kelly bet in WAVAX, subtracting the value of what may already be held in this asset
                 betSize = Library.percentageOf(bankroll, kellyFraction) - currentValue; 
             }
@@ -291,6 +292,7 @@ contract InvestmentManager is OwnableUpgradeable,
         uint256 buyAmount = investmentAssetsData[asset].buyAmount;
         uint256 buyDeterminationTimestamp = investmentAssetsData[asset].buyDeterminationTimestamp;
         uint256 minimumReceived = investmentAssetsData[asset].minimumReceived;
+        console.log("minimumReceived starts with %s", minimumReceived);
         require(investmentAssetsData[asset].exists, "This asset isn't in the investment manager.");
         require(investmentAssetsData[asset].buyAmount > 0, "This asset doesn't have any authorized buy amount.");
         require(investmentAssetsData[asset].reservedForBuy, "asset must be reserved for this purchase.");
@@ -319,8 +321,11 @@ contract InvestmentManager is OwnableUpgradeable,
             wavaxOnHand = wavax.balanceOf(address(this));
             if (buyAmount > wavaxOnHand) {
                 uint256 percentageOfTargetWAVAX = Library.valueIsWhatPercentOf(wavaxOnHand, buyAmount);
+                assert(percentageOfTargetWAVAX < Library.ONE_HUNDRED_PERCENT);
                 buyAmount = Math.min(buyAmount, wavaxOnHand);
                 minimumReceived = Library.percentageOf(minimumReceived, percentageOfTargetWAVAX);
+                console.log("minimumReceived updated to %s because only have %s% of the needed WAVAX",
+                            minimumReceived, percentageOfTargetWAVAX);
             }
             if ((buyAmount > 0) && (asset != address(wavax))) { // Do nothing if there is no WAVAX on hand for this investment
                 // swap and send to the InvestmentManager
@@ -328,6 +333,11 @@ contract InvestmentManager is OwnableUpgradeable,
                 require(success, "token approval failed.");
 
                 // Do the swap
+                console.log("Swapping %s %s, minimumReceived %s",
+                            buyAmount,
+                            investmentAssetsData[asset].purchasePath[0],
+                            minimumReceived);
+                console.log("for %s", investmentAssetsData[asset].purchasePath[1]);
                 uint256[] memory amounts = joeRouter.swapExactTokensForTokens(buyAmount,
                                                                               minimumReceived, // Define a minimum received
                                                                               investmentAssetsData[asset].purchasePath,

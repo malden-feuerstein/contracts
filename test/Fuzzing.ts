@@ -222,6 +222,7 @@ async function investmentManagerDetermineBuy(contracts, user) {
     let randomAsset = getRandomElement(addressesArray);
     console.log(randomAsset);
     await contracts.investmentManager.connect(user).determineBuy(randomAsset);
+    console.log("%s made a buy determination on asset %s", user.address, randomAsset);
 }
 
 async function cashManagerPrepareDryPowderForInvestmentBuy(contracts, user) {
@@ -344,12 +345,17 @@ describe('Fuzz Testing', function () {
         expect(investmentAssets.length).to.be.equal(numInvestmentAssets);
 
         // Do any pending investment purchases
+        // wait a week so that I can definitely determine a buy for all assets
+        await network.provider.send("evm_increaseTime", [7 * 24 * 60 * 60]); 
         for (let asset of investmentAssets) {
             var data = await contracts.investmentManager.connect(user).investmentAssetsData(asset);
+            console.log(data);
             let now = new Date();
             // if it's older than one day, get a new buy determination
             const latestBlock = await ethers.provider.getBlock("latest");
             let currentTimestampMinusOneDay = latestBlock.timestamp - (24 * 60 * 60);
+            console.log("data.buyDeterminationTimestamp = %s", data.buyDeterminationTimestamp.toString());
+            console.log("currentTimestampMinusOneDay", currentTimestampMinusOneDay.toString());
             if ((data.buyAmount > 0) && (data.buyDeterminationTimestamp <= currentTimestampMinusOneDay)) {
                 console.log("Updating stale buy determination...");
                 if (data.reservedForBuy) {
@@ -375,10 +381,10 @@ describe('Fuzz Testing', function () {
         cashManagerAVAXValue = await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX();
         investmentManagerAVAXValue = await contracts.valueHelpers.connect(user).investmentManagerTotalValueInWAVAX();
         sumAVAXValue = cashManagerAVAXValue.add(investmentManagerAVAXValue);
-        console.log("total AVAX invested: %s, total WAVAX value of contracts: %s",
-                    totalAVAXInvestments.toString(),sumAVAXValue.toString());
+        console.log("total AVAX invested: %s, total WAVAX value of contracts: %s,\nCashManager: %s, InvestmentManager: %s",
+                    totalAVAXInvestments.toString(),sumAVAXValue.toString(),
+                   cashManagerAVAXValue.toString(), investmentManagerAVAXValue.toString());
         // TODO: Why is this typically lower than the investment? Possibly slippage from the swaps?
-        //const epsilonAVAX = ethers.utils.parseUnits("5", "ether");
         const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
         const library = await Library.deploy();
         await library.deployed();
@@ -391,12 +397,13 @@ describe('Fuzz Testing', function () {
 
         // Make sure that the investmentManager is in a sane state
         for(let asset of investmentAssets) {
-            // TODO: do any necessary buys and sells and check that the ending value is sane
             const token = await ethers.getContractAt("IERC20", asset);
             var data = await contracts.investmentManager.connect(user).investmentAssetsData(asset);
             expect(data.reservedForBuy).to.be.equal(false);
             expect(data.buyAmount).to.be.equal(0);
         }
+        expect(await contracts.coin.connect(user).totalSupply()).to.be.equal(ethers.utils.parseUnits("100000", "ether"));
+        expect(await contracts.coin.connect(user).circulatingSupply()).to.be.lte(ethers.utils.parseUnits("100000", "ether"));
 
         // TODO: Make sure that no user got anything they shouldn't have gotten
     })
