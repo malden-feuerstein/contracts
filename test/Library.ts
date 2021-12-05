@@ -48,9 +48,9 @@ describe('Test Library', function () {
                                                                 45 * (10 ** PERCENTAGE_DECIMALS));
         expect(result).to.equal(ethers.utils.parseUnits("24.75", "ether"));
         // Subtract half a percent:
-        //result = await library.connect(user).subtractPercentage(ethers.utils.parseUnits("45", "ether"),
-                                                                //(5 * (10 ** PERCENTAGE_DECIMALS)) / 10);
-        //expect(result).to.equal(ethers.utils.parseUnits("44.775", "ether"));
+        result = await library.connect(user).subtractPercentage(ethers.utils.parseUnits("45", "ether"),
+                                                                (5 * (10 ** PERCENTAGE_DECIMALS)) / 10);
+        expect(result).to.equal(ethers.utils.parseUnits("44.775", "ether"));
     })
 
     it ("Should add percentages correctly", async function() {

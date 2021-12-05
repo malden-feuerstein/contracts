@@ -43,6 +43,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
     string private constant TOKEN_NAME = "Malden Feuerstein";
     string private constant TOKEN_SYMBOL = "MALD";
     uint256 private constant TOTAL_SUPPLY = 1e5 ether;
+    uint256 private constant TESTING_HARD_LIMIT = 100 ether;
 
     // contracts
     address wavaxAddress;
@@ -122,6 +123,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         uint256 avaxBalance = address(this).balance;
         circulatingSupply += avaxBalance;
         require(circulatingSupply <= TOTAL_SUPPLY, "Cannot have more MALD tokens than TOTAL_SUPPLY");
+        require(circulatingSupply <= TESTING_HARD_LIMIT, "Testing phase hard limit reached.");
         // FIXME: Should this be 1:1?
         bool success = this.transfer(msg.sender, msg.value); // transfer from this contract to the investor
         require(success, "transfer failed.");
@@ -155,7 +157,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         investmentManagerWAVAXAmount = Math.min(investmentManagerWAVAXAmount, wavax.balanceOf(address(investmentManager)));
         // Confirm again that the amount being taken out is the right percentage
         uint256 maldPercentageOfFund = Library.valueIsWhatPercentOf(maldenCoinAmount, oldCirculatingSupply);
-        require(maldPercentageOfFund <= 100 * (10 ** Library.PERCENTAGE_DECIMALS));
+        require(maldPercentageOfFund <= Library.ONE_HUNDRED_PERCENT);
         uint256 totalValueInWAVAX = valueHelpers.cashManagerTotalValueInWAVAX() + valueHelpers.investmentManagerTotalValueInWAVAX();
         uint256 wavaxPercentageOfFund = Library.valueIsWhatPercentOf(cashManagerWAVAXAmount + investmentManagerWAVAXAmount,
                                                                      totalValueInWAVAX);

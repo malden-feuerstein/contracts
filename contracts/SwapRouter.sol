@@ -78,6 +78,7 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
         }
         assert(reserve1 > newReserve1);
         uint256 receivedAsset1 = reserve1 - newReserve1;
+        console.log("asset1 = %s, receivedAsset1 = %s, asset0Amount = %s", asset1, receivedAsset1, asset0Amount);
         uint256 newPrice = (asset0Amount * (10 ** token1.decimals())) / receivedAsset1;
         uint256 thePriceImpact = ((newPrice - price) * Library.ONE_HUNDRED_PERCENT) / price;
         return (thePriceImpact, receivedAsset1);
@@ -108,6 +109,7 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
         uint256 priceImpactHere;
         uint256 expectedAmount;
         (priceImpactHere, expectedAmount) = priceImpactOfPath(path, amountToSwap);
+        console.log("%s, got expectedAmount %s", path[path.length - 1], expectedAmount);
         while (priceImpactHere > priceImpactTolerance) { // Swap less than desired if it would affect price too much
             amountToSwap /= 2; // Try cutting the amount in half
             console.log("WARNING: Halving swap amount to fit within priceImpactTolerance");

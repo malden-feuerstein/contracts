@@ -240,6 +240,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
                 "Cash asset prices are older than one minute.");
         require(investmentReservedWAVAXAmount == 0,
                 "Cannot update cash asset balances while there are pending investment purchases.");
+        // TODO: This is a duplicate of the code in valueHelpers and can be replaced, right?
         uint256 localTotalUSDValue = 0;
         for (uint16 i = 0; i < assets.length; i++) {
             address asset = assets[i];
@@ -263,50 +264,54 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         delete purchasesToPerform;
         assert(liquidationsToPerform.length == 0);
         assert(purchasesToPerform.length == 0);
-        for (uint16 i = 0; i < assets.length; i++) {
-            address asset = assets[i];
-            // Calculate the target USD value for each cash asset
-            uint256 targetPercentage = cashAssetsAllocations[asset];
-            uint256 targetUSDValue = Library.percentageOf(localTotalUSDValue, targetPercentage);
-            // Set the final one to the remaining total to account for integer division rounding errors
-            if (i == (assets.length - 1)) {
-                targetUSDValue = localTotalUSDValue - targetUSDValueSum;
-            }
-            targetUSDValueSum += targetUSDValue;
-            targetUSDValues[asset] = targetUSDValue;
-            IERC20 token = IERC20(asset);
-            uint256 tokenBalance = token.balanceOf(address(this));
-            uint256 currentUSDValue = currentUSDValues[asset];
-            uint256 currentPercentage = Library.valueIsWhatPercentOf(currentUSDValue, localTotalUSDValue);
-            assert(currentPercentage <= Library.ONE_HUNDRED_PERCENT);
-            // WAVAX is the asset of purchasing power, so when we have more than we want it will be consumed by purchases
-            // When we have less than we want, it will be produced by liquidations
-            if (address(asset) == address(wavax)) {
-                continue;
-            }
-            // Record the partial liquidations to process
-            // Full liquidations happened in setCashAllocations
-            if ((currentUSDValue > 0) &&
-                (targetUSDValue < Library.subtractPercentage(currentUSDValue, minimumAllocationDifference))) {
-                if ((currentUSDValue - targetUSDValue) < minimumSwapValue) { // Ignore swaps that are too small
+        if (localTotalUSDValue > 0) { // There are no purchases or liquidations to perform if there is no cash.
+            for (uint16 i = 0; i < assets.length; i++) {
+                address asset = assets[i];
+                // Calculate the target USD value for each cash asset
+                uint256 targetPercentage = cashAssetsAllocations[asset];
+                uint256 targetUSDValue = Library.percentageOf(localTotalUSDValue, targetPercentage);
+                // Set the final one to the remaining total to account for integer division rounding errors
+                if (i == (assets.length - 1)) {
+                    targetUSDValue = localTotalUSDValue - targetUSDValueSum;
+                }
+                targetUSDValueSum += targetUSDValue;
+                targetUSDValues[asset] = targetUSDValue;
+                IERC20 token = IERC20(asset);
+                uint256 tokenBalance = token.balanceOf(address(this));
+                uint256 currentUSDValue = currentUSDValues[asset];
+                uint256 currentPercentage = Library.valueIsWhatPercentOf(currentUSDValue, localTotalUSDValue);
+                assert(currentPercentage <= Library.ONE_HUNDRED_PERCENT);
+                // WAVAX is the asset of purchasing power, so when we have more than we want it will be consumed by purchases
+                // When we have less than we want, it will be produced by liquidations
+                if (address(asset) == address(wavax)) {
                     continue;
                 }
-                // currentTokenBalance - desiredTokenBalance
-                uint256 assetLiquidationAmount = tokenBalance - ((tokenBalance * Library.ONE_HUNDRED_PERCENT * targetPercentage) /
-                                                                   (currentPercentage * Library.ONE_HUNDRED_PERCENT));
-                assetLiquidationAmounts[asset] = assetLiquidationAmount;
-                if (assetLiquidationAmount > 0) {
-                    liquidationsToPerform.push(asset);
+                // Record the partial liquidations to process
+                // Full liquidations happened in setCashAllocations
+                if ((currentUSDValue > 0) &&
+                    (targetUSDValue < Library.subtractPercentage(currentUSDValue, minimumAllocationDifference))) {
+                    if ((currentUSDValue - targetUSDValue) < minimumSwapValue) { // Ignore swaps that are too small
+                        continue;
+                    }
+                    // currentTokenBalance - desiredTokenBalance
+                    uint256 assetLiquidationAmount = tokenBalance - ((tokenBalance * Library.ONE_HUNDRED_PERCENT * targetPercentage) /
+                                                                       (currentPercentage * Library.ONE_HUNDRED_PERCENT));
+                    assetLiquidationAmounts[asset] = assetLiquidationAmount;
+                    if (assetLiquidationAmount > 0) {
+                        liquidationsToPerform.push(asset);
+                    }
+                // Record the purchases to do
+                } else if (targetUSDValue > Library.addPercentage(currentUSDValue, minimumAllocationDifference)) {
+                    if ((targetUSDValue - currentUSDValue) < minimumSwapValue) { // Ignore swaps that are too small
+                        continue;
+                    }
+                    uint256 differenceUSDValue = targetUSDValue - currentUSDValue;
+                    uint256 assetPurchaseAmount = Library.amountDivPrice(differenceUSDValue,
+                                                                         cashAssetsPrices[asset],
+                                                                         token.decimals());
+                    assetPurchaseAmounts[asset] = assetPurchaseAmount;
+                    purchasesToPerform.push(asset);
                 }
-            // Record the purchases to do
-            } else if (targetUSDValue > Library.addPercentage(currentUSDValue, minimumAllocationDifference)) {
-                if ((targetUSDValue - currentUSDValue) < minimumSwapValue) { // Ignore swaps that are too small
-                    continue;
-                }
-                uint256 differenceUSDValue = targetUSDValue - currentUSDValue;
-                uint256 assetPurchaseAmount = Library.amountDivPrice(differenceUSDValue, cashAssetsPrices[asset], token.decimals());
-                assetPurchaseAmounts[asset] = assetPurchaseAmount;
-                purchasesToPerform.push(asset);
             }
         }
         assert(targetUSDValueSum == totalUSDValue); // Something went wrong with the math

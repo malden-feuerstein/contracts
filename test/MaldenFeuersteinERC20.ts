@@ -57,6 +57,12 @@ describe('Test MaldenFeuersteinERC20', function () {
         expect(await coin.connect(user).balanceOf(coin.address)).to.equal(ethers.BigNumber.from("100000000000000000000000"));
     })
 
+    it("Should have a low investment limit for the testing period", async function() {
+        await coin.connect(user).invest({"value": ethers.utils.parseUnits("50", "ether")});
+        await expect(coin.connect(user).invest({"value": ethers.utils.parseUnits("70", "ether")})).to.be.revertedWith(
+            "Testing phase hard limit reached.");
+    })
+
     it("Should not allow immediate redemption, redemption should work after speed bump", async function() {
         const balance = await coin.provider.getBalance(user.address);
         // https://docs.ethers.io/v4/api-utils.html#ether-strings-and-wei

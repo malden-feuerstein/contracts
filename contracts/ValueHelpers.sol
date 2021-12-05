@@ -110,6 +110,11 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
         require(priceInUSD > 0, "This asset isn't stored in cash prices.");
         IERC20 token = IERC20(asset);
         uint256 assetValueInUSD = Library.priceMulAmount(token.balanceOf(address(cashManager)), token.decimals(), priceInUSD);
-        return Library.valueIsWhatPercentOf(assetValueInUSD, cashManager.totalUSDValue());
+        uint256 cashManagerValue = cashManager.totalUSDValue();
+        if (cashManagerValue == 0) {
+            return 0;
+        } else {
+            return Library.valueIsWhatPercentOf(assetValueInUSD, cashManager.totalUSDValue());
+        }
     }
 }

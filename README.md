@@ -63,6 +63,8 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Test: Redemption scenario where there is nothing in the cash manager, everything is in the investment manager
 - FIXME: There's an issue with redemptions where users can get a bit more than they are owed because the swap slippage in the liquidations performed to get their WAVAX are not taken into account for the amount of WAVAX given to the user.
 - FIXME: The 24hr wait on investing and redeeming can be easily circumvented by sending the MALD to a different address
+- Make sure all swaps are limited in how frequently they can be done. An attack vector to erode value needlessly would be to perform swaps over and over, incurring slippage and liquidity provider fees.
+- Test: There is nothing in the CashManager because everything has been invested. The fuzzer sometimes covers this case.
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called

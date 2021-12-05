@@ -224,21 +224,26 @@ contract InvestmentManager is OwnableUpgradeable,
                 betSize = Library.percentageOf(bankroll, kellyFraction) - currentValue; 
             }
             // Now modify the betSize based on the AMM market conditions and slippage tolerances
-            if (betSize > 0) { // Don't need to determine swap tolerances if the bet is 0
+            if ((betSize > 0) && (totalCashValue > 0)) { // Don't need to determine swap tolerances if the bet is 0
+                betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
+                investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
                 if (asset != wavaxAddress) {
                     require(investmentAssetsData[asset].purchasePath[0] == wavaxAddress, "Purchase paths must start with WAVAX.");
                     uint256 expectedReceived;
+                    console.log("betSize before findSwapAmountWithinTolerance %s", betSize);
                     (betSize, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(investmentAssetsData[asset].purchasePath,
                                                                                            betSize,
                                                                                            priceImpactTolerance);
+                    console.log("betSize after findSwapAmountWithinTolerance %s", betSize);
                     minimumReceived = Library.subtractPercentage(expectedReceived, slippageTolerance);
+                    console.log("Buy determination for %s, expectedReceived %s, adjusted for slippagetolerance %s",
+                                asset, expectedReceived, minimumReceived);
                 } else { // if I'm just sending WAVAX then I should receive the exact amount
                     minimumReceived = betSize;
                 }
-                betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
-                investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
             }
         }
+        console.log("Buy determination for %s, buyAmount %s, minimumReceived %s", asset, betSize, minimumReceived);
         investmentAssetsData[asset].buyAmount = betSize; // in WAVAX
         investmentAssetsData[asset].minimumReceived = minimumReceived;
         emit DeterminedBuy(asset, betSize, kellyFraction);

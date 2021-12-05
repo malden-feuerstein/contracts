@@ -222,7 +222,18 @@ async function investmentManagerDetermineBuy(contracts, user) {
     let randomAsset = getRandomElement(addressesArray);
     console.log(randomAsset);
     await contracts.investmentManager.connect(user).determineBuy(randomAsset);
-    console.log("%s made a buy determination on asset %s", user.address, randomAsset);
+    console.log("%s made an InvestmentManager buy determination on asset %s", user.address, randomAsset);
+}
+
+async function investmentManagerDetermineSell(contracts, user) {
+    console.log("investmentManagerDetermineSell...");
+    let addressesArray = Object.keys(addresses).map(function(key){
+        return addresses[key];
+    });
+    let randomAsset = getRandomElement(addressesArray);
+    console.log(randomAsset);
+    await contracts.investmentManager.connect(user).determineSell(randomAsset);
+    console.log("%s made an InvestmentManager sell determination on asset %s", user.address, randomAsset);
 }
 
 async function cashManagerPrepareDryPowderForInvestmentBuy(contracts, user) {
@@ -299,7 +310,7 @@ describe('Fuzz Testing', function () {
                                      investmentManagerGetLatestPrice, investmentManagerBuy, investmentManagerDetermineBuy,
                                      cashManagerPrepareDryPowderForInvestmentBuy, cashManagerProcessPurchase,
                                      cashManagerProcessLiquidation, cashManagerProcessInvestmentBuy, investmentManagerSetAsset,
-                                     sendMALD];
+                                     sendMALD, investmentManagerDetermineSell];
         // I want it to sometimes execute a small number of calls because this tends to produce outcomes with small AVAX amounts,
         // I want coverage of both large and small AVAX amounts
         const numCalls = randomIntFromInterval(20, 400); // Increase this to increase the number of fuzz calls per test
@@ -372,10 +383,6 @@ describe('Fuzz Testing', function () {
             }
         }
 
-        // Test that the cash manager is in a sane state
-        await network.provider.send("evm_increaseTime", [86401]); // wait a day
-        await makeCashManagerAllocations(contracts, assets, allocations, user);
-
         // Any investments should roughly sum up to the WAVAX value of the cash manager + the WAVAX value of the investment manager
         // This ensures that no value was "lost"
         cashManagerAVAXValue = await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX();
@@ -384,12 +391,20 @@ describe('Fuzz Testing', function () {
         console.log("total AVAX invested: %s, total WAVAX value of contracts: %s,\nCashManager: %s, InvestmentManager: %s",
                     totalAVAXInvestments.toString(),sumAVAXValue.toString(),
                    cashManagerAVAXValue.toString(), investmentManagerAVAXValue.toString());
+
+        // Test that the cash manager is in a sane state
+        await network.provider.send("evm_increaseTime", [86401]); // wait a day
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
+
         // TODO: Why is this typically lower than the investment? Possibly slippage from the swaps?
         const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
         const library = await Library.deploy();
         await library.deployed();
-        const epsilonAVAX = await library.percentageOf(totalAVAXInvestments, BigNumber.from((0.6 * (10 ** PERCENTAGE_DECIMALS))));
-        console.log("+/- 0.6% is %s AVAX", epsilonAVAX);
+        // The smaller the total value in the funds, the larger the percentage of funds that will be eroded through swap slippages
+        // TODO: Ideally this wouldn't be a fixed percentage, but would be a percentage that is a function of the size of the
+        // funds as well as the number of swaps performed.
+        const epsilonAVAX = await library.percentageOf(totalAVAXInvestments, BigNumber.from((1 * (10 ** PERCENTAGE_DECIMALS))));
+        console.log("+/- 1% is %s AVAX", epsilonAVAX);
         // The total WAVAX value of the two contracts must be within 1 AVAX of the total AVAX invested
         testBigNumberIsWithinInclusiveBounds(sumAVAXValue,
                                              totalAVAXInvestments.sub(epsilonAVAX),
@@ -404,6 +419,10 @@ describe('Fuzz Testing', function () {
         }
         expect(await contracts.coin.connect(user).totalSupply()).to.be.equal(ethers.utils.parseUnits("100000", "ether"));
         expect(await contracts.coin.connect(user).circulatingSupply()).to.be.lte(ethers.utils.parseUnits("100000", "ether"));
+        expect(await contracts.coin.connect(user).circulatingSupply()).to.be.lte(ethers.utils.parseUnits("100", "ether"));
+        expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.equal(0);
+        // TODO: Print a list of all cash holdings and all investment holdings and their percentages, print the determined kelly
+        // criterion for each investment asset
 
         // TODO: Make sure that no user got anything they shouldn't have gotten
     })

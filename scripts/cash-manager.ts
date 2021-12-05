@@ -120,7 +120,11 @@ export async function makeCashManagerAllocations(contracts, assets, allocations,
         const lower = ethers.BigNumber.from(allocations[i]).sub(one_percent);
         const upper = ethers.BigNumber.from(allocations[i]).add(one_percent);
         const actualPercentage = await valueHelpers.connect(user).assetPercentageOfCashManager(asset);
-        testBigNumberIsWithinInclusiveBounds(actualPercentage, lower, upper);
+        if (actualPercentage > 0) {
+            testBigNumberIsWithinInclusiveBounds(actualPercentage, lower, upper);
+        } else {
+            expect(await valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).to.be.equal(0);
+        }
     }
 }
 
