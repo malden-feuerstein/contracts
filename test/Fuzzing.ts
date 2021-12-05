@@ -294,7 +294,7 @@ describe('Fuzz Testing', function () {
                                      sendMALD];
         // I want it to sometimes execute a small number of calls because this tends to produce outcomes with small AVAX amounts,
         // I want coverage of both large and small AVAX amounts
-        const numCalls = randomIntFromInterval(20, 300); // Increase this to increase the number of fuzz calls per test
+        const numCalls = randomIntFromInterval(20, 400); // Increase this to increase the number of fuzz calls per test
         const user_addresses = await ethers.getSigners();
         console.log("There are %s users to choose from", user_addresses.length);
         var numSuccessfulCalls = numCalls;

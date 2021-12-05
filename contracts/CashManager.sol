@@ -351,6 +351,9 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         (amountToSwap, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(path,
                                                                                     desiredAmountToSwap,
                                                                                     priceImpactTolerance);
+        // FIXME: The fuzzer is getting into situations where investmentReservedWAVAXAmount > wavax.balanceOf(this)
+        // This is possible when multiple buy determinations are made before the previous buy determinations have been
+        // processed.
         require(amountToSwap <= (wavax.balanceOf(address(this)) - investmentReservedWAVAXAmount),
                "This cash asset purchase would require using WAVAX that is reserved for an investment purchase.");
         bool success = fromToken.approve(address(joeRouter), amountToSwap);

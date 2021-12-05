@@ -42,27 +42,23 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 
 ### TODO
 - Connect the web front end to show the cash assets and investments in the fund
-- Why is there an investment period? Shouldn't it just allow investing and redeeming the ERC20 tokens forever?
-- Backtest it with real ETH, BTC data
+- Backtest it with real data
 - Maybe increase percentage precision to 18 decimals to completely capture all WAVAX precision?
-- Actually make use of the stored prices. Currently they're stored but not used.
-- Currently I make the assumption that an asset -> USDT pair exists, but this may not always be true. Need to use liquidation path to WAVAX to get to USDT
-- !InvestmentManager: It should have a switch on an asset where it's in watch-only mode: The price history can be collected from week to week but it can't buy bought
+- Actually make use of the stored prices in the InvestmentManager. Currently they're stored but not used.
+- Currently I make the assumption that an asset -> USDT pair exists, but this may not always be true. Need to use liquidation path to WAVAX to get to USDT, or just store a specific USDT liquidation path.
+- !InvestmentManager: It should have a switch on an asset where it's in watch-only mode: The price history can be collected from week to week but it can't be bought
 - CashManager: Only liquidate when a cash asset is entirely removed? Getting a new asset up to desired % is only done through new investments.
 - What happens when a particular liquidation or purchase fails repeatedly? It would prevent it from moving to the next item. This could be solved by removing it from the list even if it fails. But would need to prevent a malicious user from always removing it from the list.
 - Important test: Run some tests on the redemptions stepping on the investment liquidations. Start a redemption that queues some liquidations. Then start an investment buy that queues some liquidations.
-- Important test: Test a multi-token swap path. Currently I'm only testing token A->B paths, but what if it's A->B->C?
+- Test a multi-token swap path. Currently I'm only testing token A->B paths, but what if it's A->B->C?
 - Important test: Test a situation where a liquidation or purchase is greater than a 1% priceImpact. Do this by making it a very large amount of WAVAX in the fund. Should be able to eventually achieve the desired outcomes by making one purchase per day
-- Add a test with $1000, which is what I will start with on main net
 - Focus on the "pull over push" model listed [here](https://eth.wiki/en/howto/smart-contract-safety) and consider changing some of your CashManager's push external calls to pull calls where a user has to call it for each one rather than the contract calling it in a for loop
 - !Test: What happens when a CashManager.setCashAllocations doesn't fully liquidate a cash asset because it would have too much of a price impact? It will be stuck in the contract. I need to allow the rest of it to be liquidated through subsequent liquidation calls
-- Add a test of the InvestmentManager that randomly chooses functions and assets to call in a loop. Then do all the buys and sells in order as they should be done and see that it gets into the state desired
 - Test: How does the kelly bet sizing work with many assets in the investment manager, all of them qualifying for purchases?
-- Make sure the last investor to redeem can get everything out
-- Rather than an ERC20, make the token an ANT and wrap it as an ARC-20. See [here](https://medium.com/avalancheavax/apricot-phase-five-p-c-atomic-transfers-atomic-transaction-batching-and-c-chain-fee-algorithm-912507489ecd) and [here](https://docs.avax.network/build/references/coreth-arc20s). This will allow the token to be used on the X, P, and other chains.
+- !Rather than an ERC20, make the token an ANT and wrap it as an ARC-20. See [here](https://medium.com/avalancheavax/apricot-phase-five-p-c-atomic-transfers-atomic-transaction-batching-and-c-chain-fee-algorithm-912507489ecd) and [here](https://docs.avax.network/build/references/coreth-arc20s). This will allow the token to be used on the X, P, and other chains.
 - Test: Someone externally sending to the contract one of the cash or investment assets, thereby throwing the percentages off balance.
 - Test: Someone sends AVAX to MaldenFeuersteinERC20. It should be sent to the CashManager on the next call to invest()
-- When the kelly bet is larger than the total cash on hand, liquidate all cash assets to WAVAX and use all WAVAX to buy
+- Test: When the kelly bet is larger than the total cash on hand, liquidate all cash assets to WAVAX and use all WAVAX to buy
 - Find a way to test same-block transactions in the Fuzzing tests using [this](https://hardhat.org/hardhat-network/explanation/mining-modes.html).
 - Test: Redemption scenario where there is nothing in the cash manager, everything is in the investment manager
 - FIXME: There's an issue with redemptions where users can get a bit more than they are owed because the swap slippage in the liquidations performed to get their WAVAX are not taken into account for the amount of WAVAX given to the user.

@@ -54,7 +54,6 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
     // storage
     uint256 public circulatingSupply;
     bool private stopped; // emergency stop everything
-    bool private investmentPeriodOver; // Set to true once the initial investment period is over
     // https://samczsun.com/so-you-want-to-use-a-price-oracle/
     mapping(address => uint256) private timestamps;
     mapping(address => uint256) private investmentBalances; // These are the balances of AVAX invested by investors
@@ -70,7 +69,6 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
           // The ERC20 contract starts with all of the tokens
         _mint(address(this), TOTAL_SUPPLY);
         stopped = false;
-        investmentPeriodOver = false;
         circulatingSupply = 0;
     }
 
@@ -111,16 +109,11 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         _unpause();
     }
   
-    function endInvestmentPeriod() external onlyOwner {
-        investmentPeriodOver = true;
-    }
-  
     // The caller should receive tokens in exchange for putting in money
     // Anyone can call this
     function invest() payable external whenNotPaused {
         require(!stopped, "Can not invest during emergency stop.");
         // Do nothing if all of the investment tokens have been depleted
-        require(!investmentPeriodOver, "Can not invest after invest period has ended.");
         require(balanceOf(address(this)) > 0, "The contract must have MALD to give for investment.");
         require(balanceOf(address(this)) >= msg.value, "The investment is too large.");
         timestamps[msg.sender] = block.timestamp;
@@ -129,9 +122,6 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         uint256 avaxBalance = address(this).balance;
         circulatingSupply += avaxBalance;
         require(circulatingSupply <= TOTAL_SUPPLY, "Cannot have more MALD tokens than TOTAL_SUPPLY");
-        if (balanceOf(address(this)) <= 0) {
-            investmentPeriodOver = true;
-        }
         // FIXME: Should this be 1:1?
         bool success = this.transfer(msg.sender, msg.value); // transfer from this contract to the investor
         require(success, "transfer failed.");

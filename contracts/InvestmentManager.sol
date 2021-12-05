@@ -200,17 +200,18 @@ contract InvestmentManager is OwnableUpgradeable,
         // A buy is when an asset is at least 25% below its intrinsicValue
         if (currentPrice.price < Library.subtractPercentage(investmentAssetsData[asset].intrinsicValue, marginOfSafety)) {
             // TODO: Check if it is stable in price over the past n weeks (+/- 10%)
-            // TODO: The loss should probably be a paramter on the individual asset
             // Calculate the amount won in the success scenario off of the intrinsic value number
-            uint256 percentGainExpected = Library.valueIsWhatPercentOf(investmentAssetsData[asset].intrinsicValue -currentPrice.price,
-                                                                       currentPrice.price);
-            //console.log("Expecting a gain of %s in the success scenario", percentGainExpected);
+            uint256 percentGainExpected = Library.valueIsWhatPercentOf(
+                                                                    investmentAssetsData[asset].intrinsicValue - currentPrice.price,
+                                                                    currentPrice.price);
+            // TODO: The expected loss should probably be a paramter on the individual asset
             uint256 kellyFraction = Library.kellyFraction(investmentAssetsData[asset].confidence,
                                                           (80 * (10 ** 6)), // lose 80%
                                                           percentGainExpected); // Double in win scenario
-            //console.log("raw kelly fraction of %s", kellyFraction);
             kellyFraction /= 2; // Take half kelly bet
             kellyFraction = Math.min(kellyFraction, 100 * (10 ** 6)); // Can't take more than 100% of available funds
+            // FIXME: The betSize should have subtracted the value of the current holdings of the asset
+            // FIXME: betSize should be >0 only if the current holding is more than 1% off from the target
             uint256 betSize = Library.percentageOf(totalCashValue, kellyFraction); // half kelly bet in WAVAX
             // Now modify the betSize based on the AMM market conditions and slippage tolerances
             uint256 expectedReceived;
@@ -227,7 +228,6 @@ contract InvestmentManager is OwnableUpgradeable,
                 }
                 betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
             }
-            //console.log("betSize %s", betSize);
             investmentAssetsData[asset].buyAmount = betSize; // in WAVAX
             investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
             investmentAssetsData[asset].minimumReceived = minimumReceived;
