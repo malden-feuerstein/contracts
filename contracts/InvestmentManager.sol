@@ -191,13 +191,16 @@ contract InvestmentManager is OwnableUpgradeable,
         require(investmentAssetsData[asset].sellAmount == 0, "cannot buy asset if sell is pending.");
         require(investmentAssetsData[asset].prices.length >= nWeeksOfScorn, "Must have a minimum number of price samples.");
         require(!investmentAssetsData[asset].reservedForBuy, "Cannot determine a buy on an asset currently reserved for buy.");
+        require(block.timestamp > investmentAssetsData[asset].buyDeterminationTimestamp + (7 * 24 * 60 * 60),
+                "Cannot determine an asset buy more than once per week.");
         // Total value of what the CashManager is holding, denominated in WAVAX
         uint256 totalCashValue = valueHelpers.cashManagerTotalValueInWAVAX();
-        //console.log("Got total cash value in WAVAX of %s", totalCashValue);
         // TODO: I don't want to assume that asset -> usdt path exists directly, need to use liquidate path
         Library.PriceQuote memory currentPrice = swapRouter.getPriceQuote(asset, address(usdt));
-        //console.log("Asset current price: %s", currentPrice.price);
         // A buy is when an asset is at least 25% below its intrinsicValue
+        uint256 betSize = 0;
+        uint256 minimumReceived = 0;
+        uint256 kellyFraction = 0;
         if (currentPrice.price < Library.subtractPercentage(investmentAssetsData[asset].intrinsicValue, marginOfSafety)) {
             // TODO: Check if it is stable in price over the past n weeks (+/- 10%)
             // Calculate the amount won in the success scenario off of the intrinsic value number
@@ -205,20 +208,25 @@ contract InvestmentManager is OwnableUpgradeable,
                                                                     investmentAssetsData[asset].intrinsicValue - currentPrice.price,
                                                                     currentPrice.price);
             // TODO: The expected loss should probably be a paramter on the individual asset
-            uint256 kellyFraction = Library.kellyFraction(investmentAssetsData[asset].confidence,
-                                                          (80 * (10 ** Library.PERCENTAGE_DECIMALS)), // lose 80%
-                                                          percentGainExpected); // Double in win scenario
+            kellyFraction = Library.kellyFraction(investmentAssetsData[asset].confidence,
+                                                  (80 * (10 ** Library.PERCENTAGE_DECIMALS)), // lose 80%
+                                                  percentGainExpected); // Double in win scenario
             kellyFraction /= 2; // Take half kelly bet
             kellyFraction = Math.min(kellyFraction, Library.ONE_HUNDRED_PERCENT); // Can't take more than 100% of available funds
-            // FIXME: The betSize should have subtracted the value of the current holdings of the asset
-            // FIXME: betSize should be >0 only if the current holding is more than 1% off from the target
-            uint256 betSize = Library.percentageOf(totalCashValue, kellyFraction); // half kelly bet in WAVAX
+            // We consider the bankrool to be the value of everything in both the CashManager and the InvestmentManager
+            uint256 bankroll = totalCashValue + valueHelpers.investmentManagerTotalValueInWAVAX();
+            uint256 currentValue = valueHelpers.investmentManagerAssetValueInWAVAX(asset);
+            uint256 currentFraction = Library.percentageOf(currentValue, bankroll);
+            // Only proceed if this asset is more than 1% less than the determined kellyl % of the bankroll
+            if (currentFraction < (kellyFraction - (10 ** Library.PERCENTAGE_DECIMALS))) {
+                // half kelly bet in WAVAX, subtracting the value of what may already be held in this asset
+                betSize = Library.percentageOf(bankroll, kellyFraction) - currentValue; 
+            }
             // Now modify the betSize based on the AMM market conditions and slippage tolerances
-            uint256 expectedReceived;
-            uint256 minimumReceived;
             if (betSize > 0) { // Don't need to determine swap tolerances if the bet is 0
                 if (asset != wavaxAddress) {
                     require(investmentAssetsData[asset].purchasePath[0] == wavaxAddress, "Purchase paths must start with WAVAX.");
+                    uint256 expectedReceived;
                     (betSize, expectedReceived) = swapRouter.findSwapAmountWithinTolerance(investmentAssetsData[asset].purchasePath,
                                                                                            betSize,
                                                                                            priceImpactTolerance);
@@ -227,12 +235,12 @@ contract InvestmentManager is OwnableUpgradeable,
                     minimumReceived = betSize;
                 }
                 betSize = Math.min(totalCashValue, betSize); // can't bet more than total cash on hand
+                investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
             }
-            investmentAssetsData[asset].buyAmount = betSize; // in WAVAX
-            investmentAssetsData[asset].buyDeterminationTimestamp = block.timestamp;
-            investmentAssetsData[asset].minimumReceived = minimumReceived;
-            emit DeterminedBuy(asset, betSize, kellyFraction);
         }
+        investmentAssetsData[asset].buyAmount = betSize; // in WAVAX
+        investmentAssetsData[asset].minimumReceived = minimumReceived;
+        emit DeterminedBuy(asset, betSize, kellyFraction);
     }
 
     function getBuyPath(address asset) view external returns (address[] memory) { // anyone can call this

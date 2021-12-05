@@ -65,6 +65,18 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
         return totalValue;
     }
 
+    function investmentManagerAssetValueInWAVAX(address asset) view public returns (uint256) {
+        IERC20 token = IERC20(asset);
+        uint256 tokenBalance = token.balanceOf(address(investmentManager));
+        if (asset == wavaxAddress) {
+            return tokenBalance;
+        } else {
+            // TODO: This assumes that asset -> wavax exists, but need to use the liquidatePath
+            Library.PriceQuote memory priceInWAVAX = swapRouter.getPriceQuote(asset, wavaxAddress);
+            return Library.priceMulAmount(tokenBalance, token.decimals(), priceInWAVAX.price);
+        }
+    }
+
     // Return the total value of everything in the investment manager denominated in WAVAX
     // TODO: This is a near duplicate of the same function in the CashManager. Ideally I wouldn't have this code duplication,
     // but I'm unable to solve it because OpenZeppelin's upgradeability doesn't allow Library functions that modify state, nor
@@ -77,15 +89,10 @@ contract ValueHelpers is OwnableUpgradeable, UUPSUpgradeable, IValueHelpers {
                 uint256 wavaxBalance = wavax.balanceOf(address(investmentManager));
                 totalValue += wavaxBalance;
             } else {
-                IERC20 token = IERC20(asset);
-                uint256 tokenBalance = token.balanceOf(address(investmentManager));
-                // TODO: This assumes that asset -> wavax exists, but need to use the liquidatePath
-                Library.PriceQuote memory priceInWAVAX = swapRouter.getPriceQuote(asset, wavaxAddress);
-                uint256 valueInWAVAX = Library.priceMulAmount(tokenBalance, token.decimals(), priceInWAVAX.price);
-                totalValue += valueInWAVAX;
+                totalValue += investmentManagerAssetValueInWAVAX(asset);
             }
         }
-        // Any WAVAX on hand needs to be counted toward the total
+        // Any WAVAX on hand that isn't considered an investment needs to be counted
         bool exists;
         (, , , , , , , exists, ) = investmentManager.investmentAssetsData(address(wavax));
         if (!exists) {

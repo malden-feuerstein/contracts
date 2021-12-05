@@ -114,7 +114,7 @@ describe('Test InvestmentManager', function () {
 
         const token = await ethers.getContractAt("IERC20", addresses.wavax);
         await investmentManager.connect(owner).setInvestmentAsset(addresses.wavax,
-                                                                  BigNumber.from("200000000"), // $200 AVAX price target
+                                                                  BigNumber.from("100000000"), // $100 AVAX price target, just above
                                                                   60 * (10 ** 6), // 60% confidence
                                                                   liquidatePaths.wavax,
                                                                   purchasePaths.wavax);
@@ -136,20 +136,33 @@ describe('Test InvestmentManager', function () {
         await investmentManager.connect(user).getLatestPrice(addresses.wavax); // fourth update
 
         // the Kelly bet says it's not worth the risk at all
-        var result = await investmentManager.connect(user).determineBuy(addresses.wavax);
-        expect(result.value).to.equal(0);
+        var tx = await investmentManager.connect(user).determineBuy(addresses.wavax);
+        var receipt = await tx.wait();
+        expect(receipt.events[0].args[1]).to.equal(0); // betSize == 0
         // therefore, processing a buy on it shouldn't work
         await expect(contracts.investmentManager.connect(user).processBuy(addresses.wavax)).to.be.
-            revertedWith("asset must be reserved for this purchase.");
+            revertedWith("This asset doesn't have any authorized buy amount.");
 
-        // Set it to an intrinsicValue that will enable making a buy
         await investmentManager.connect(owner).setInvestmentAsset(addresses.wavax,
-                                                                  BigNumber.from("2000000000"), // $2000 AVAX price target
+                                                                  BigNumber.from("10000000"), // $10 AVAX price target, far below
                                                                   60 * (10 ** 6), // 60% confidence
                                                                   liquidatePaths.wavax,
                                                                   purchasePaths.wavax);
-        var transaction = await investmentManager.connect(user).determineBuy(addresses.wavax);
-        var receipt = await transaction.wait();
+        tx = await investmentManager.connect(user).determineBuy(addresses.wavax);
+        receipt = await tx.wait();
+        expect(receipt.events[0].args[1]).to.equal(0); // betSize == 0
+        // therefore, processing a buy on it shouldn't work
+        await expect(contracts.investmentManager.connect(user).processBuy(addresses.wavax)).to.be.
+            revertedWith("This asset doesn't have any authorized buy amount.");
+
+        // Set it to an intrinsicValue that will enable making a buy
+        await investmentManager.connect(owner).setInvestmentAsset(addresses.wavax,
+                                                                  BigNumber.from("2000000000"), // $2000 AVAX price target, far above
+                                                                  60 * (10 ** 6), // 60% confidence
+                                                                  liquidatePaths.wavax,
+                                                                  purchasePaths.wavax);
+        tx = await investmentManager.connect(user).determineBuy(addresses.wavax);
+        receipt = await tx.wait();
         expect(receipt.events[0].args[1]).to.be.not.equal(0);
         var authorizedBuyAmount = receipt.events[0].args[1];
 
@@ -159,6 +172,18 @@ describe('Test InvestmentManager', function () {
         await contracts.investmentManager.connect(user).processBuy(addresses.wavax);
         expect(await contracts.cashManager.connect(user).investmentReservedWAVAXAmount()).to.be.equal(0);
         expect(await wavax.connect(user).balanceOf(investmentManager.address)).to.equal(authorizedBuyAmount);
+
+        await expect(investmentManager.connect(user).determineBuy(addresses.wavax)).to.be.revertedWith(
+            "Cannot determine an asset buy more than once per week.");
+        await network.provider.send("evm_increaseTime", [24 * 60 * 60 * 7]); // wait a week
+
+        // It should already be at the desired proportion of the bankroll and should not require any further purchases.
+        tx = await investmentManager.connect(user).determineBuy(addresses.wavax);
+        receipt = await tx.wait();
+        expect(receipt.events[0].args[1]).to.equal(0); // betSize == 0
+        // therefore, processing a buy on it shouldn't work
+        await expect(contracts.investmentManager.connect(user).processBuy(addresses.wavax)).to.be.
+            revertedWith("This asset doesn't have any authorized buy amount.");
     })
 
     it ("Should make a WAVAX buy investment with no WAVAX in CashManager", async function() {
