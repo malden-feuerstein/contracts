@@ -70,6 +70,7 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
         uint256 price = (reserve0 * (10 ** token1.decimals())) / reserve1;
         uint256 constantProduct = reserve0 * reserve1;
         uint256 newReserve0 = reserve0 + asset0Amount;
+        assert(newReserve0 > reserve0);
         uint256 newReserve1 = constantProduct / newReserve0;
         if (reserve1 <= newReserve1) {
             console.log("asset0 = %s, asset1 = %s", asset0, asset1);
@@ -79,7 +80,8 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
         assert(reserve1 > newReserve1);
         uint256 receivedAsset1 = reserve1 - newReserve1;
         console.log("asset1 = %s, receivedAsset1 = %s, asset0Amount = %s", asset1, receivedAsset1, asset0Amount);
-        uint256 newPrice = (asset0Amount * (10 ** token1.decimals())) / receivedAsset1;
+        //uint256 newPrice = (asset0Amount * (10 ** token1.decimals())) / receivedAsset1;
+        uint256 newPrice = (newReserve0 * (10 ** token1.decimals())) / newReserve1;
         // FIXME: The fuzzer is sometimes finding a situation where thePriceImpact causes an arithmetic error
         assert(price > 0); // Can't have a 0 price
         if (newPrice < price) {

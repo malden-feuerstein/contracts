@@ -145,7 +145,6 @@ abstract contract Redeemable is IRedeemable {
         } else {
             uint256 cashManagerWAVAXAmount;
             (maldenCoinAmount, cashManagerWAVAXAmount, wavaxAmount) = coin.getAuthorizedRedemptionAmounts(msg.sender);
-            assert(cashManagerWAVAXAmount > 0);
         }
         require(maldenCoinAmount > 0, "MALD: Not authorized to liquidate for redemption.");
         require(wavaxAmount > 0, "WAVAX: Not authorized to liquidate for redemption.");

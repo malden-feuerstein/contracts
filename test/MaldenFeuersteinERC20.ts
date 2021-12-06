@@ -63,6 +63,13 @@ describe('Test MaldenFeuersteinERC20', function () {
             "Testing phase hard limit reached.");
     })
 
+    it("Should work with a small investment", async function() {
+        const smallInvestmentValue = ethers.utils.parseUnits("1", "ether");
+        await coin.connect(user).invest({"value": smallInvestmentValue});
+        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager, owner, user, smallInvestmentValue);
+        await makeCashManagerAllocations(contracts, assets, allocations, user);
+    })
+
     it("Should have the correct circulating supply", async function() {
         await coin.connect(user).invest({"value": ethers.utils.parseUnits("50", "ether")});
         expect(await coin.connect(user).circulatingSupply()).to.be.equal(ethers.utils.parseUnits("50", "ether"));

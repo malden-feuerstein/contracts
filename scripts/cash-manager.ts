@@ -94,7 +94,7 @@ export async function setCashManagerAllocations(cashManager, owner, user, invest
     expect(await cashManager.connect(user).numAssets()).to.not.equal(5);
     const wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
     await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(investmentAmount);
-    return {assets, allocations}
+    return {assets, allocations};
 }
 
 // Once the allocations have been set on the CashManager, do all of the necessary purchases and liquidations to

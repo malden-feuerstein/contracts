@@ -1,5 +1,3 @@
-// test/Airdrop.j0
-// Load dependencies
 import { expect } from "chai";
 import { BigNumber } from "ethers";
 import { ethers, network, upgrades } from "hardhat";
@@ -13,7 +11,10 @@ import { makeInvestment } from "../scripts/investment-manager"
 
 // https://hardhat.org/tutorial/testing-contracts.html
 // https://github.com/gnosis/mock-contract FOR HELP
+// TODO: Should be able to randomly pause and unpause the contracts at any time and ignore all reverted transactions while paused
 
+// This should be the same as the value in Library.sol
+const PERCENTAGE_DECIMALS = 6;
 var totalAVAXInvestments = BigNumber.from("0");
 
 function randomIntFromInterval(min, max) { // min and max included
@@ -71,12 +72,9 @@ async function coinFullRedeem(contracts, user) {
     let expectedEndingTokenAmount = BigNumber.from("0");
     await network.provider.send("evm_increaseTime", [86401]); // Make sure it's been a day since the investment took place
     if (fullTokenAmount > 0) {
-        //console.log("coinFullRedeem called...");
-        //console.log("user has %s tokens", fullTokenAmount);
         let result = await contracts.coin.connect(user).getAuthorizedRedemptionAmounts(user.address);
         let maldenCoinAmount = result[0];
         let avaxAmount = result[1];
-        //console.log("maldenCoinAmount = %s, avaxAmount = %s", maldenCoinAmount.toString(), avaxAmount.toString());
         if (maldenCoinAmount.eq(BigNumber.from("0"))) {
             expect(avaxAmount).to.be.equal(BigNumber.from("0"));
         }
@@ -87,11 +85,20 @@ async function coinFullRedeem(contracts, user) {
             expectedEndingTokenAmount = fullTokenAmount.sub(maldenCoinAmount);
             fullTokenAmount = maldenCoinAmount;
         }
-        await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
-        await processAllLiquidations(contracts.cashManager, user);
+        const authorizations = await contracts.coin.getAuthorizedRedemptionAmounts(user.address);
+        console.log("CashManager liquidations...");
+        if (authorizations[1] > 0) { // Don't try to liquidate anything from the CashManager if it has nothing in it
+            await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
+            await processAllLiquidations(contracts.cashManager, user);
+        }
 
-        await contracts.investmentManager.connect(user).prepareDryPowderForRedemption();
-        await processAllLiquidations(contracts.investmentManager, user);
+        // Do this only if there isn't enough WAVAX in the CashManager
+        console.log(result);
+        console.log("InvestmentManager liquidations...");
+        if (authorizations[2] > 0) {
+            await contracts.investmentManager.connect(user).prepareDryPowderForRedemption();
+            await processAllLiquidations(contracts.investmentManager, user);
+        }
 
         const userAVAXBefore = await contracts.coin.provider.getBalance(user.address);
         await contracts.coin.connect(user).approve(contracts.coin.address, fullTokenAmount);
@@ -164,9 +171,9 @@ async function investmentManagerSetAsset(contracts, user) {
     let randomIndex = Math.floor(Math.random() * addressesArray.length);
     let randomAsset = addressesArray[randomIndex];
     //console.log("randomAsset = %s", randomAsset);
-    let randomPriceTarget = BigNumber.from(String(randomIntFromInterval(0, 60000) * (10 ** 6)));
+    let randomPriceTarget = BigNumber.from(String(randomIntFromInterval(0, 60000) * (10 ** PERCENTAGE_DECIMALS)));
     //console.log("randomPriceTarget = %s", randomPriceTarget);
-    let randomConfidence = BigNumber.from(String(randomIntFromInterval(0, 100) * (10 ** 6)));
+    let randomConfidence = BigNumber.from(String(randomIntFromInterval(0, 100) * (10 ** PERCENTAGE_DECIMALS)));
     //console.log("randomConfidence = %s", randomConfidence);
     console.log("investmentManagerSetAsset:");
     console.log(randomAsset);
@@ -278,7 +285,7 @@ describe('Fuzz Testing', function () {
     let cashManager;
     let owner;
     let user;
-    let userInvestmentAmount = ethers.utils.parseUnits("100", "ether");
+    let userInvestmentAmount = ethers.utils.parseUnits("10", "ether");
     let dai;
     let wavax;
     let router;
@@ -440,9 +447,17 @@ describe('Fuzz Testing', function () {
         // criterion for each investment asset
 
         // Every user should be able to fully redeem. Iterate through the users and redeem if they have non-zero tokens
+        const randomNumber = randomIntFromInterval(0, 99);
+        if (randomNumber < 50) { // Set the contracts to a paused state with a 50% chance
+            console.log("Pausing the contracts...");
+            await contracts.coin.connect(owner).pause();
+            await contracts.investmentManager.connect(owner).pause();
+            await contracts.cashManager.connect(owner).pause();
+        }
         console.log("Redeeming all user investments...");
-        for (let user of await user_addresses) {
-            await coinFullRedeem(contracts, user);
+        for (let localUser of await user_addresses) {
+            await coinFullRedeem(contracts, localUser);
+            expect(await contracts.coin.connect(localUser).balanceOf(localUser.address)).to.be.equal(0);
         }
 
         // Test that there are no outstanding MALD approvals between the contracts

@@ -167,6 +167,7 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
                                                                      totalValueInWAVAX);
         if (wavaxPercentageOfFund > maldPercentageOfFund) { // Must be within 0.1%
             require(wavaxPercentageOfFund - maldPercentageOfFund < 1e5, "Coin: Percentage too large.");
+            console.log("wavaxPercentageOfFund = %s, maldPercentageOfFund = %s", wavaxPercentageOfFund, maldPercentageOfFund);
         } else {
             console.log("maldPercentageOfFund = %s, wavaxPercentageOfFund = %s", maldPercentageOfFund, wavaxPercentageOfFund);
             require(maldPercentageOfFund - wavaxPercentageOfFund < 1e5, "Coin: Percentage too small.");

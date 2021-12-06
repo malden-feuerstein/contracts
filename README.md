@@ -41,7 +41,6 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - To show linter warnings: `yarn lint`
 
 ### TODO
-- Connect the web front end to show the cash assets and investments in the fund
 - Backtest it with real data
 - Maybe increase percentage precision to 18 decimals to completely capture all WAVAX precision?
 - Actually make use of the stored prices in the InvestmentManager. Currently they're stored but not used.
@@ -65,6 +64,12 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - FIXME: The 24hr wait on investing and redeeming can be easily circumvented by sending the MALD to a different address
 - Make sure all swaps are limited in how frequently they can be done. An attack vector to erode value needlessly would be to perform swaps over and over, incurring slippage and liquidity provider fees.
 - Test: There is nothing in the CashManager because everything has been invested. The fuzzer sometimes covers this case.
+- Test: Make the userInvestmentAmount a random number from 1 to 100 in all of the tests
+
+### TODO Frontend
+- Show the cash manager holdings on the website
+- Show the investment manager holdings on the website
+- Ensure that the choice of chain is correct - want Avalanche, not Ethereum
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called

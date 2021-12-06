@@ -80,7 +80,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         totalUSDValue = 0;
         priceImpactTolerance = 1 * (10 ** 6); // 1%
         minimumAllocationDifference = 1 * (10 ** 6); // 1%
-        minimumSwapValue = 50 * (10 ** 6); // $50
+        minimumSwapValue = 1 * (10 ** 6); // $50
         slippageTolerance = 5 * (10 ** 6) / 10; // 0.5%
         investmentReservedWAVAXAmount = 0;
         managerChoice = ManagerChoice.CashManager;
