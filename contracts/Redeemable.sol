@@ -112,11 +112,11 @@ abstract contract Redeemable is IRedeemable {
                                                                         liquidateToken.decimals(),
                                                                         priceQuote.price);
             // Add 1% to make sure we swap enough
-            uint256 buyAmountWithCushion = Library.addPercentage(amountNeeded, (1 * (10 ** 6)));
+            uint256 buyAmountWithCushion = Library.addPercentage(amountNeeded, Library.ONE_PERCENT);
             if ((liquidateTokenValueInWAVAX + wavaxOnHand) >= buyAmountWithCushion) {
                 uint256 differenceNeeded = buyAmountWithCushion - wavaxOnHand;
                 uint256 percentLiquidationNeeded = Library.valueIsWhatPercentOf(differenceNeeded, liquidateTokenValueInWAVAX);
-                assert(percentLiquidationNeeded < (100 * (10 ** 6)));
+                assert(percentLiquidationNeeded < Library.ONE_HUNDRED_PERCENT);
                 uint256 amountToLiquidate = Library.percentageOf(liquidateTokenOnHand, percentLiquidationNeeded);
                 assetLiquidationAmounts[liquidateAsset] = amountToLiquidate;
                 if (amountToLiquidate > 0) {

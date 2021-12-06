@@ -412,7 +412,6 @@ describe('Fuzz Testing', function () {
         await network.provider.send("evm_increaseTime", [86401]); // wait a day
         await makeCashManagerAllocations(contracts, assets, allocations, user);
 
-        // TODO: Why is this typically lower than the investment? Possibly slippage from the swaps?
         const Library = await ethers.getContractFactory("ExposedLibraryForTesting");
         const library = await Library.deploy();
         await library.deployed();
