@@ -63,6 +63,28 @@ describe('Test MaldenFeuersteinERC20', function () {
             "Testing phase hard limit reached.");
     })
 
+    it("Should have the correct circulating supply", async function() {
+        await coin.connect(user).invest({"value": ethers.utils.parseUnits("50", "ether")});
+        expect(await coin.connect(user).circulatingSupply()).to.be.equal(ethers.utils.parseUnits("50", "ether"));
+        expect(await coin.connect(user).balanceOf(user.address)).to.be.equal(ethers.utils.parseUnits("50", "ether"));
+        await coin.connect(user).invest({"value": ethers.utils.parseUnits("10", "ether")});
+        expect(await coin.connect(user).circulatingSupply()).to.be.equal(ethers.utils.parseUnits("60", "ether"));
+        expect(await coin.connect(user).balanceOf(user.address)).to.be.equal(ethers.utils.parseUnits("60", "ether"));
+        await network.provider.send("evm_increaseTime", [86401]); // wait a day
+
+        await coin.connect(user).requestRedeem(ethers.utils.parseUnits("45", "ether"));
+        await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
+        await coin.connect(user).approve(coin.address, ethers.utils.parseUnits("45", "ether"));
+        await coin.connect(user).redeem();
+        expect(await coin.connect(user).circulatingSupply()).to.be.equal(ethers.utils.parseUnits("15", "ether"));
+
+        await coin.connect(user).requestRedeem(ethers.utils.parseUnits("15", "ether"));
+        await contracts.cashManager.connect(user).prepareDryPowderForRedemption();
+        await coin.connect(user).approve(coin.address, ethers.utils.parseUnits("15", "ether"));
+        await coin.connect(user).redeem();
+        expect(await coin.connect(user).circulatingSupply()).to.be.equal(ethers.utils.parseUnits("0", "ether"));
+    })
+
     it("Should not allow immediate redemption, redemption should work after speed bump", async function() {
         const balance = await coin.provider.getBalance(user.address);
         // https://docs.ethers.io/v4/api-utils.html#ether-strings-and-wei
@@ -183,7 +205,7 @@ describe('Test MaldenFeuersteinERC20', function () {
         expect(await contracts.valueHelpers.connect(user).cashManagerTotalValueInWAVAX()).to.be.equal(0);
         const userAVAXAfter = await coin.provider.getBalance(user.address);
         // This assumes a max transaction cost of 1 AVAX
-        expect(userAVAXAfter).to.be.gt(userAVAXBefore.add(redeemedAmount).sub(ethers.utils.parseUnits("100", "ether")));
+        expect(userAVAXAfter).to.be.gt(userAVAXBefore.add(redeemedAmount).sub(ethers.utils.parseUnits("1", "ether")));
         expect(await wavax.connect(user).balanceOf(user.address)).to.be.equal(0);
     })
 

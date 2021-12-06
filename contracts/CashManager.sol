@@ -130,7 +130,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(passedPurchasePaths.length == localAssets.length, "Must have a purchasePath for each asset.");
         uint sum = 0;
         for(uint i = 0; i < percentages.length; i++) {
-            require(percentages[i] > 0, "Can't assign a cash asset to a portfolio weight of 0%.");
+            require(percentages[i] > 0, "CashManager: >0%"); // Can't assign a cash asset to a portfolio weight of 0%.
             sum += percentages[i];
         }
         require(sum == Library.ONE_HUNDRED_PERCENT, "The percentages must sum to 100%.");
@@ -396,7 +396,7 @@ contract CashManager is OwnableUpgradeable, UUPSUpgradeable, ICashManager, Pausa
         require(!reservedForBuy, "asset cannot already be reserved for this purchase.");
         require(exists, "CashManager: exists"); // This asset isn't in the investment manager.
         require(buyAmount > 0, "This asset doesn't have any authorized buy amount.");
-        console.log("%s, %s", block.timestamp, buyDeterminationTimestamp + (24 * 60 * 60));
+        //console.log("%s, %s", block.timestamp, buyDeterminationTimestamp + (24 * 60 * 60));
         require(block.timestamp <= buyDeterminationTimestamp + (24 * 60 * 60), "A buy determination made over a day ago is invalid");
         require(buyAmount <= valueHelpers.cashManagerTotalValueInWAVAX(),
                 "Cannot buy with more WAVAX than have on hand.");

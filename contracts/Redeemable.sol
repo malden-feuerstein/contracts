@@ -5,7 +5,6 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-//import "hardhat/console.sol"; // TODO: Remove this for production
 import "@traderjoe-xyz/core/contracts/traderjoe/interfaces/IJoeRouter02.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol"; // min()
 
@@ -146,10 +145,10 @@ abstract contract Redeemable is IRedeemable {
         } else {
             uint256 cashManagerWAVAXAmount;
             (maldenCoinAmount, cashManagerWAVAXAmount, wavaxAmount) = coin.getAuthorizedRedemptionAmounts(msg.sender);
-            require(cashManagerWAVAXAmount > 0);
+            assert(cashManagerWAVAXAmount > 0);
         }
-        require(maldenCoinAmount > 0, "Not authorized to liquidate for redemption.");
-        require(wavaxAmount > 0, "Not authorized to liquidate for redemption.");
+        require(maldenCoinAmount > 0, "MALD: Not authorized to liquidate for redemption.");
+        require(wavaxAmount > 0, "WAVAX: Not authorized to liquidate for redemption.");
         uint256 wavaxOnHand = wavax.balanceOf(address(this));
         if (wavaxOnHand < wavaxAmount) { // Prepare additional dry powder only if needed
             prepareDryPowder(wavaxAmount, wavaxOnHand);

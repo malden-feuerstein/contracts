@@ -80,6 +80,11 @@ contract SwapRouter is OwnableUpgradeable, UUPSUpgradeable, ISwapRouter {
         uint256 receivedAsset1 = reserve1 - newReserve1;
         console.log("asset1 = %s, receivedAsset1 = %s, asset0Amount = %s", asset1, receivedAsset1, asset0Amount);
         uint256 newPrice = (asset0Amount * (10 ** token1.decimals())) / receivedAsset1;
+        // FIXME: The fuzzer is sometimes finding a situation where thePriceImpact causes an arithmetic error
+        assert(price > 0); // Can't have a 0 price
+        if (newPrice < price) {
+            console.log("ERROR: newPrice %s shouldn't be less than price %s", newPrice, price);
+        }
         uint256 thePriceImpact = ((newPrice - price) * Library.ONE_HUNDRED_PERCENT) / price;
         return (thePriceImpact, receivedAsset1);
     }

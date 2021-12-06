@@ -33,7 +33,10 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
                                   UUPSUpgradeable,
                                   PausableUpgradeable,
                                   IMaldenFeuersteinERC20 {
-    event Redeemed(uint256); // Emitted when a user successfully redeems, with the amount of redeemed
+    // Emitted when a user successfully redeems
+    // Amount of AVAX redeemed, Amount of MALD exchanged for it
+    event Redeemed(uint256, uint256);
+    event Invested(uint256);
     struct Redemption {
         uint256 maldenCoinAmount;
         uint256 cashManagerWAVAXAmount;
@@ -120,7 +123,8 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         timestamps[msg.sender] = block.timestamp;
         // Based on https://ethereum.stackexchange.com/questions/65660/accepting-ether-in-a-smart-contract/65661
         investmentBalances[msg.sender] = msg.value;
-        uint256 avaxBalance = address(this).balance;
+        emit Invested(msg.value);
+        uint256 avaxBalance = msg.value;
         circulatingSupply += avaxBalance;
         require(circulatingSupply <= TOTAL_SUPPLY, "Cannot have more MALD tokens than TOTAL_SUPPLY");
         require(circulatingSupply <= TESTING_HARD_LIMIT, "Testing phase hard limit reached.");
@@ -164,11 +168,12 @@ contract MaldenFeuersteinERC20 is ERC20Upgradeable,
         if (wavaxPercentageOfFund > maldPercentageOfFund) { // Must be within 0.1%
             require(wavaxPercentageOfFund - maldPercentageOfFund < 1e5, "Coin: Percentage too large.");
         } else {
+            console.log("maldPercentageOfFund = %s, wavaxPercentageOfFund = %s", maldPercentageOfFund, wavaxPercentageOfFund);
             require(maldPercentageOfFund - wavaxPercentageOfFund < 1e5, "Coin: Percentage too small.");
         }
         // take the tokens from the person
         uint256 wavaxTotal = cashManagerWAVAXAmount + investmentManagerWAVAXAmount;
-        emit Redeemed(wavaxTotal);
+        emit Redeemed(wavaxTotal, maldenCoinAmount);
         bool success = this.transferFrom(msg.sender, address(this), maldenCoinAmount);
         require(success, "transferFrom failed.");
         success = wavax.transferFrom(address(cashManager), address(this), cashManagerWAVAXAmount);
