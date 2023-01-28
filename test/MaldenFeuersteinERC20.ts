@@ -1,4 +1,4 @@
-// test/Airdrop.j0
+// test
 // Load dependencies
 import { expect } from "chai";
 import { BigNumber } from "ethers";
@@ -29,6 +29,7 @@ describe('Test MaldenFeuersteinERC20', function () {
     before(async function () {
         const user_addresses = await ethers.getSigners();
         owner = user_addresses[0];
+        console.log("owner", owner);
         user = user_addresses[1];
 
         dai = await ethers.getContractAt("IERC20", addresses.dai);
@@ -66,7 +67,7 @@ describe('Test MaldenFeuersteinERC20', function () {
     it("Should work with a small investment", async function() {
         const smallInvestmentValue = ethers.utils.parseUnits("1", "ether");
         await coin.connect(user).invest({"value": smallInvestmentValue});
-        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager, owner, user, smallInvestmentValue);
+        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager);
         await makeCashManagerAllocations(contracts, assets, allocations, user);
     })
 
@@ -142,7 +143,7 @@ describe('Test MaldenFeuersteinERC20', function () {
     it("Should be pausable", async function() {
         let tokens = await getTokens();
         await coin.connect(user).invest({"value": userInvestmentAmount});
-        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager, owner, user, userInvestmentAmount);
+        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager);
         await makeCashManagerAllocations(contracts, assets, allocations, user);
         // Make an investment
         expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.be.equal(0);

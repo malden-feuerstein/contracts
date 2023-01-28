@@ -75,7 +75,8 @@ export default {
     hardhat: {
       gasPrice: 250000000000, // 225 nAVAX (GWei)
       //gasPrice: 1000000000000, // high value, used when the network has congestion
-      forking: forkingData
+      forking: forkingData,
+      chainId: 43114,
     },
     local: {
       url: 'http://localhost:9650/ext/bc/C/rpc',

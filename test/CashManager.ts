@@ -176,8 +176,7 @@ describe('Test CashManager', function () {
         // There won't be anything to update because the allotment percentages haven't changed and prices are very close
         await expect(await cashManager.connect(user).numPurhcasesToProcess()).to.be.equal(0);
         await expect(await cashManager.connect(user).numLiquidationsToProcess()).to.be.equal(0);
-        // TODO: Test the asset balances at the end of the swapping
-        // TODO: If this is holdling billions of dollars, what do the rounding errors look like compounded over many
+        // TODO: If this is holding billions of dollars, what do the rounding errors look like compounded over many
         //      updates?
     })
     // TODO: Test the scenario where the user makes the first investment
@@ -192,7 +191,7 @@ describe('Test CashManager', function () {
         await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(userInvestmentAmount);
         await cashManager.connect(user).updateCashPrices();
 
-        await setCashManagerAllocations(cashManager, owner, user, userInvestmentAmount);
+        await setCashManagerAllocations(cashManager);
         await cashManager.connect(user).updateCashPrices();
         await cashManager.connect(user).updateLiquidationsAndPurchases();
         // Although I have more WAVAX than 10%, it's not counted as a liquidation

@@ -317,7 +317,7 @@ describe('Fuzz Testing', function () {
         let tokens = await getTokens();
         await coin.connect(user).invest({"value": userInvestmentAmount});
         totalAVAXInvestments = totalAVAXInvestments.add(userInvestmentAmount);
-        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager, owner, user, userInvestmentAmount);
+        let { assets, allocations } = await setCashManagerAllocations(contracts.cashManager);
         await makeCashManagerAllocations(contracts, assets, allocations, user);
         // Make an investment
         expect(await tokens.joe.connect(user).balanceOf(contracts.investmentManager.address)).to.be.equal(0);

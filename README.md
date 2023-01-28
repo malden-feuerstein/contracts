@@ -41,7 +41,8 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - To show linter warnings: `yarn lint`
 
 ### TODO
-- Backtest it with real data
+- Backtest with real data. I think this will require mocking the prices returned from the SwapRouter.
+- Run the fuzzer across time with real backtest data.
 - Maybe increase percentage precision to 18 decimals to completely capture all WAVAX precision?
 - Actually make use of the stored prices in the InvestmentManager. Currently they're stored but not used.
 - Currently I make the assumption that an asset -> USDT pair exists, but this may not always be true. Need to use liquidation path to WAVAX to get to USDT, or just store a specific USDT liquidation path.
@@ -62,6 +63,8 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Test: Redemption scenario where there is nothing in the cash manager, everything is in the investment manager
 - FIXME: There's an issue with redemptions where users can get a bit more than they are owed because the swap slippage in the liquidations performed to get their WAVAX are not taken into account for the amount of WAVAX given to the user.
 - FIXME: The 24hr wait on investing and redeeming can be easily circumvented by sending the MALD to a different address
+- FIXME: The fuzzer frequently hits a situation where a stale buy determination isn't removed
+- FIXME: Sending MALD 1:1 for AVAX only makes sense during an initial investment period. After that it will need to be according to the value of what's already in the fund. Otherwise there's the potential to dilute the earlier investors.
 - Make sure all swaps are limited in how frequently they can be done. An attack vector to erode value needlessly would be to perform swaps over and over, incurring slippage and liquidity provider fees.
 - Test: There is nothing in the CashManager because everything has been invested. The fuzzer sometimes covers this case.
 - Test: Make the userInvestmentAmount a random number from 1 to 100 in all of the tests
@@ -69,7 +72,8 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 ### TODO Frontend
 - Show the cash manager holdings on the website
 - Show the investment manager holdings on the website
-- Ensure that the choice of chain is correct - want Avalanche, not Ethereum
+- Ensure that the MetaMask choice of chain is correct - want Avalanche, not Ethereum
+- Show a graph on the website "This is what your assets would've done had they been left alone in a fund such as this over the past 2 years".
 
 ### Main Net Launch TODO
 - Make sure you get your events right, they're currently under-defined and under-called
@@ -84,9 +88,7 @@ Malden Feuerstein is a set of EVM-compatible solidity contracts to be deployed i
 - Go through this checklist: https://docs.openzeppelin.com/learn/preparing-for-mainnet
 - Make sure all functions have the right ownership (public vs onlyOwner vs initializer)
 - Make sure you call the initializer of all parent contracts
-- Add front end integration allowing interaction with MetaMask and to show what's in the cash manager and what's in the investment manager, similar to [this](https://medium.com/linum-labs/hackathon-dapps-just-got-a-whole-lot-easier-46fd53ade769)
-- Show a graph on the website "This is what your assets would've done had they been left alone in a fund such as this over the past 2 years".
-- Use hardhat with ledger signing to deploy, as shown [here](https://github.com/nomiclabs/hardhat/issues/1159#issuecomment-849648283)
+- Make sure there are two mitigations against flash attacks: Speed bump on getting a price and using a price for a swap, as well as a check that a swap is only a certain portion of the DEX's reserves.
 
 ### Future Directions
 - Idea: I'm essentially building an on-chain DEX aggregator. Would others want to use such a service?

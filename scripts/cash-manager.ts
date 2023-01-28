@@ -64,7 +64,7 @@ export async function testTokenAmountWithinBounds(tokenAddress, user, balanceHol
 
 // This is a convenience function for tests to set up cash manager allocations
 // These are also the cash manager asset allocations that are planned to be used in production
-export async function setCashManagerAllocations(cashManager, owner, user, investmentAmount) :
+export async function setCashManagerAllocations(cashManager) :
     Promise<{assets: string[], allocations: number[]}> {
     var assets = [addresses.wavax,
                   addresses.wbtc,
@@ -85,15 +85,14 @@ export async function setCashManagerAllocations(cashManager, owner, user, invest
                               purchasePaths.usdt,
                               purchasePaths.usdc,
                               purchasePaths.dai];
-    await cashManager.connect(owner).setCashAllocations(assets,
-                                                        allocations,
-                                                        liquidationPaths,
-                                                        localPurchasePaths);
-    expect(await cashManager.connect(user).numAssets()).to.equal(6);
-    expect(await cashManager.connect(user).numAssets()).to.not.equal(7);
-    expect(await cashManager.connect(user).numAssets()).to.not.equal(5);
+    await cashManager.setCashAllocations(assets,
+                                         allocations,
+                                         liquidationPaths,
+                                         localPurchasePaths);
+    expect(await cashManager.numAssets()).to.equal(6);
+    expect(await cashManager.numAssets()).to.not.equal(7);
+    expect(await cashManager.numAssets()).to.not.equal(5);
     const wavax = await ethers.getContractAt("IWAVAX", addresses.wavax);
-    await expect(await wavax.connect(user).balanceOf(cashManager.address)).to.equal(investmentAmount);
     return {assets, allocations};
 }
 

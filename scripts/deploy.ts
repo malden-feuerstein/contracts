@@ -5,26 +5,29 @@ import {
 import { ethers, upgrades } from "hardhat"
 import { addresses, joeRouterAddress, joeFactoryAddress } from "./addresses"
 
-async function deployAll() { // This will be used to deploy to main net
+async function deployAll(signer?) { // This will be used to deploy to main net
+    if (!signer) {
+        signer = await ethers.getSigners()[0];
+    }
 
-    const ValueHelpers: ContractFactory = await ethers.getContractFactory("ValueHelpers");
+    const ValueHelpers: ContractFactory = await ethers.getContractFactory("ValueHelpers", signer);
     const valueHelpers: Contract = await upgrades.deployProxy(ValueHelpers, {'kind': 'uups'});
     await valueHelpers.deployed();
 
-    const SwapRouter: ContractFactory = await ethers.getContractFactory("SwapRouter");
+    const SwapRouter: ContractFactory = await ethers.getContractFactory("SwapRouter", signer);
     const swapRouter: Contract = await upgrades.deployProxy(SwapRouter, {'kind': 'uups'});
     await swapRouter.deployed();
 
-    const InvestmentManager: ContractFactory = await ethers.getContractFactory("InvestmentManager");
+    const InvestmentManager: ContractFactory = await ethers.getContractFactory("InvestmentManager", signer);
     const investmentManager: Contract = await upgrades.deployProxy(InvestmentManager, {'kind': 'uups'});
     await investmentManager.deployed();
 
-    const CashManager: ContractFactory = await ethers.getContractFactory("CashManager");
+    const CashManager: ContractFactory = await ethers.getContractFactory("CashManager", signer);
     const cashManager: Contract = await upgrades.deployProxy(CashManager,
                                                              {'kind': 'uups'});
     await cashManager.deployed();
 
-    const Coin: ContractFactory = await ethers.getContractFactory("MaldenFeuersteinERC20");
+    const Coin: ContractFactory = await ethers.getContractFactory("MaldenFeuersteinERC20", signer);
     const coin: Contract = await upgrades.deployProxy(Coin, {'kind': 'uups'});
     await coin.deployed();
 
